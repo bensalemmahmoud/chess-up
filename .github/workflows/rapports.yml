@@ -1,0 +1,97 @@
+# Chaque nuit : télécharge les nouvelles parties, les analyse avec Stockfish, puis publie sur GitHub Pages
+# les rapports des joueurs du secret AMIS, chacun chiffré avec son propre mot de passe.
+name: Rapports
+
+on:
+  schedule:
+    - cron: "0 4 * * *"     # 4 h UTC
+  workflow_dispatch:        # bouton « Run workflow » dans l'onglet Actions
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: python -m pip install -r requirements.txt
+
+      - run: sudo apt-get update && sudo apt-get install -y stockfish
+
+      # Liste des joueurs et mots de passe : contenu de amis.txt, stocké dans le secret AMIS du dépôt.
+      # Les mots de passe sont masqués dans les journaux, qui sont publics.
+      - name: Liste des joueurs
+        env:
+          AMIS: ${{ secrets.AMIS }}
+        run: |
+          printf '%s\n' "$AMIS" > amis.txt
+          test -n "$AMIS" || { echo "Secret AMIS vide : voir README.md"; exit 1; }
+          python - <<'PY'
+          import re
+          for pw in re.findall(r"--mot-de-passe[ =](\S+)", open("amis.txt", encoding="utf-8").read()):
+              print(f"::add-mask::{pw}")
+          PY
+
+      # Parties téléchargées et analyses des exécutions précédentes.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            cache/parties
+            cache/analyses.ci.json
+          key: chess-cache-${{ github.run_id }}
+          restore-keys: chess-cache-
+
+      # cache/analyses.json (versionné, mis à jour depuis ton PC) + analyses faites ici : on garde les deux.
+      - name: Fusionner les analyses
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          main, ci = Path("cache/analyses.json"), Path("cache/analyses.ci.json")
+          merged = json.loads(main.read_text()) if main.exists() else {}
+          if ci.exists():
+              for link, a in json.loads(ci.read_text()).items():
+                  if a.get("d", 0) >= merged.get(link, {}).get("d", 0):
+                      merged[link] = a
+          main.parent.mkdir(exist_ok=True)
+          main.write_text(json.dumps(merged, separators=(",", ":")))
+          print(f"{len(merged)} parties déjà analysées")
+          PY
+
+      - name: Générer les rapports chiffrés
+        run: python chess_dashboard_generator.py --amis amis.txt --publier --workers 4
+        env:
+          STOCKFISH_PATH: /usr/games/stockfish
+
+      - run: cp cache/analyses.json cache/analyses.ci.json
+
+      # Uniquement site/ : rapports chiffrés et page d'accueil sans nom.
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

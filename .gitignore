@@ -1,0 +1,12 @@
+stockfish/
+# le cache est reconstruit automatiquement, sauf les analyses Stockfish (longues à refaire),
+# envoyées pour que GitHub Actions ne les recalcule pas
+cache/*
+!cache/analyses.json
+rapports/
+site/
+ancienne_version/
+__pycache__/
+*.tmp
+# liste personnelle des joueurs et de leurs mots de passe : uniquement sur ton PC et dans le secret GitHub AMIS
+amis.txt
