@@ -549,7 +549,7 @@ h1{font-size:clamp(24px,5vw,34px);margin:0 0 4px}.sub{color:var(--muted);margin:
 </style></head><body><main><h1>Chess Analytics</h1><p class="sub">Choisis un joueur pour voir son rapport et lancer une séance d'entraînement.</p>
 <div class="cards">__CARDS__</div><p class="note">Mis à jour le __GENERATED__.</p></main></body></html>'''
 
-HTML_TEMPLATE = r'''<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+HTML_TEMPLATE = r'''<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Chess Analytics</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="../icon-192.png"><link rel="apple-touch-icon" href="../icon-192.png">
 <meta name="theme-color" content="#10151d"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -570,7 +570,12 @@ th{color:var(--muted);position:sticky;top:0;background:var(--panel);font-weight:
 .win{color:#75c9a5}.loss{color:#ff8b8b}.draw{color:#e7c879}
 .filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:12px 0}.filters input,.filters select,.filters button{background:var(--panel2);color:var(--text);border:1px solid var(--line);padding:8px 10px;border-radius:8px;font:inherit;font-size:14px}
 .filters label{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:14px}
-.sticky{position:sticky;top:0;z-index:5;background:var(--bg);padding:8px 0;border-bottom:1px solid var(--line)}
+.tabs{position:sticky;top:0;z-index:10;display:flex;gap:4px;background:var(--bg);border-bottom:1px solid var(--line);margin:4px 0 4px;overflow-x:auto}
+.tabs a{display:flex;align-items:center;gap:8px;padding:12px 14px 10px;color:var(--muted);text-decoration:none;border-bottom:2px solid transparent;font-weight:600;font-size:14px;white-space:nowrap}
+.tabs a:hover{color:var(--text)}.tabs a.active{color:var(--text);border-bottom-color:var(--c1)}.tabs svg{width:18px;height:18px;flex:none}
+.tab>.part:first-child{margin-top:10px;border-top:0;padding-top:0}
+.phead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.cta{background:var(--c1);color:#fff;text-decoration:none;padding:9px 14px;border-radius:8px;font-weight:600;font-size:14px;white-space:nowrap}.cta:hover{filter:brightness(1.1)}
 a{color:#91caff}.note{font-size:12px;color:var(--muted);margin-top:10px}
 .bar{display:inline-block;height:8px;border-radius:4px;background:var(--c1);vertical-align:middle;margin-right:6px}
 .insights{margin:0;padding-left:20px}.insights li{margin:6px 0}
@@ -587,17 +592,27 @@ a{color:#91caff}.note{font-size:12px;color:var(--muted);margin-top:10px}
 .coord{position:absolute;font-size:2.4cqw;font-weight:700;color:#10151d;opacity:.6}.coord.f{right:3px;bottom:1px}.coord.r{left:3px;top:1px}
 .tpanel h3{font-size:18px;margin:4px 0 8px}.tpanel p{margin:6px 0}.feedback{min-height:48px;margin:12px 0;padding:10px 12px;border-radius:8px;background:var(--panel2);font-size:14px}
 .feedback.ok{border-left:4px solid var(--win)}.feedback.ko{border-left:4px solid var(--loss)}.tpanel .rank{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
-@media(max-width:900px){main{padding:14px 16px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.charts,.prio,.trainer{grid-template-columns:1fr}.chartbox{height:250px}}
+@media(max-width:900px){body{padding-bottom:calc(66px + env(safe-area-inset-bottom))}
+.tabs{position:fixed;top:auto;bottom:0;left:0;right:0;margin:0;gap:0;justify-content:space-around;background:var(--panel);border-bottom:0;border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+.tabs a{flex:1;flex-direction:column;justify-content:center;gap:3px;padding:8px 2px 7px;font-size:11px;font-weight:500;border-bottom:0;border-top:2px solid transparent}
+.tabs a.active{border-top-color:var(--c1)}.tabs svg{width:22px;height:22px}
+.grid{gap:10px}.kpi{padding:12px 14px}.kpi .value{font-size:20px}.kpi .hint{font-size:11px}
+main{padding:14px 16px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.charts,.prio,.trainer{grid-template-columns:1fr}.chartbox{height:250px}}
 </style></head><body><main>
 <header><div>__HOME__<h1>Chess Analytics</h1><div class="muted" id="subtitle"></div></div><div class="muted" id="generated"></div></header>
-<div class="filters sticky"><label>Cadence <select id="fCadence"></select></label><label>Période <select id="fPeriod">
+<nav class="tabs" id="tabs"><a href="#accueil" data-tab="accueil"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z"/></svg><span>Accueil</span></a><a href="#statistiques" data-tab="statistiques"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M2 20h20"/></svg><span>Statistiques</span></a><a href="#analyse" data-tab="analyse"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><span>Analyse</span></a><a href="#entrainement" data-tab="entrainement"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg><span>S'entraîner</span></a><a href="#historique" data-tab="historique"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg><span>Historique</span></a></nav>
+<div class="filters"><label>Cadence <select id="fCadence"></select></label><label>Période <select id="fPeriod">
 <option value="">Toute la période</option><option value="30">30 derniers jours</option><option value="90">3 derniers mois</option><option value="180">6 derniers mois</option></select></label>
 <label><input type="checkbox" id="fRated"> Parties classées uniquement</label><span class="muted" id="fCount"></span></div>
 
+<div class="tab" data-tab="accueil">
 <div class="grid" id="kpis"></div>
-<section class="panel"><h2>Constats clés</h2><p class="sub">Générés automatiquement à partir des parties filtrées.</p><ul class="insights" id="insights"></ul></section>
+<section class="panel" id="prioPanel"><div class="phead"><div><h2>Tes 3 priorités d'entraînement</h2><p class="sub" id="prioSub"></p></div><a class="cta" href="#entrainement" id="cta">S'entraîner →</a></div><div class="prio" id="prio"></div></section>
+<section class="panel" style="margin-top:14px"><h2>Constats clés</h2><p class="sub">Générés automatiquement à partir des parties filtrées.</p><ul class="insights" id="insights"></ul></section>
+</div>
 
-<div class="part">1 · Résultats</div>
+<div class="tab" data-tab="statistiques" hidden>
+<div class="part">Résultats</div>
 <div class="charts">
 <section class="panel"><h2>Score par cadence</h2><p class="sub">Victoire = 1, nulle = ½. Toutes cadences, autres filtres appliqués.</p><div class="chartbox"><canvas id="cadenceChart"></canvas></div><table id="cadenceTable"></table></section>
 <section class="panel"><h2>Blancs contre Noirs</h2><p class="sub">Score par couleur dans la sélection.</p><div class="chartbox"><canvas id="colorChart"></canvas></div><table id="colorTable"></table></section>
@@ -605,19 +620,18 @@ a{color:#91caff}.note{font-size:12px;color:var(--muted);margin-top:10px}
 <section class="panel"><h2>Évolution de l'Elo</h2><p class="sub">Dernier Elo de chaque semaine, une courbe par cadence.</p><div class="chartbox"><canvas id="eloChart"></canvas></div></section>
 <section class="panel full"><h2>Parties par mois</h2><div class="chartbox" style="height:240px"><canvas id="monthlyChart"></canvas></div></section>
 </div>
-
-<div class="part">2 · Ouvertures</div>
+<div class="part">Ouvertures</div>
 <section class="panel"><h2>Tes ouvertures</h2><p class="sub">L'évaluation Stockfish après 12 coups indique si l'ouverture te laisse une position saine (en pions, de ton point de vue).</p>
 <div class="filters"><label>Regrouper par <select id="oGroup"><option value="famille">famille</option><option value="variante">variante</option></select></label>
 <label>Minimum <select id="oMin"><option>3</option><option selected>5</option><option>10</option><option>20</option></select> parties</label></div>
 <div class="tablewrap"><table><thead><tr id="oHead"></tr></thead><tbody id="openings"></tbody></table></div>
 <div class="note">Sous 10 parties, les résultats d'une ligne fluctuent beaucoup : à lire comme des pistes, pas des verdicts.</div></section>
+</div>
 
-<div class="part">3 · Analyse Stockfish</div>
+<div class="tab" data-tab="analyse" hidden>
 <div id="sfMissing" class="panel empty" hidden></div>
 <div id="sfBlock">
 <div class="grid" id="sfKpis"></div>
-<section class="panel"><h2>Tes 3 priorités d'entraînement</h2><p class="sub" id="prioSub"></p><div class="prio" id="prio"></div></section>
 <div class="charts">
 <section class="panel"><h2>Erreurs par phase de jeu</h2><p class="sub">Pour 100 de tes coups joués dans chaque phase.</p><div class="chartbox"><canvas id="phaseChart"></canvas></div></section>
 <section class="panel"><h2>Comment tes parties non gagnées ont basculé</h2><p class="sub">Points perdus (défaite = 1, nulle = ½), selon la cause principale.</p><div class="chartbox"><canvas id="causeChart"></canvas></div></section>
@@ -630,8 +644,9 @@ a{color:#91caff}.note{font-size:12px;color:var(--muted);margin-top:10px}
 <section class="panel" style="margin-top:14px"><h2>Positions gagnantes non converties</h2><p class="sub" id="lostSub"></p>
 <div class="tablewrap"><table><thead><tr><th>Date</th><th>Cadence</th><th>Adversaire</th><th class="num">Chances max.</th><th>Résultat</th><th>Fin</th><th></th></tr></thead><tbody id="lostWins"></tbody></table></div></section>
 </div>
+</div>
 
-<div class="part">4 · Entraînement</div>
+<div class="tab" data-tab="entrainement" hidden>
 <div id="trMissing" class="panel empty" hidden></div>
 <section class="panel" id="trBlock"><h2>Séance d'entraînement</h2><p class="sub">Tes propres positions critiques : trouve le coup de Stockfish. Une position ratée revient dans la séance ; une position réussie revient de plus en plus tard (1, 3, 7, 16 puis 35 jours). La progression est enregistrée dans ce navigateur.</p>
 <div class="filters"><label>Thème <select id="tDeck"></select></label><span class="muted" id="tStats"></span></div>
@@ -640,11 +655,13 @@ a{color:#91caff}.note{font-size:12px;color:var(--muted);margin-top:10px}
 <div class="filters"><button id="tHint">Indice</button><button id="tSolve">Solution</button><button id="tNext">Position suivante →</button></div>
 <div class="note" id="tLinks"></div></div></div>
 <div class="note">Clique sur une pièce, puis sur sa case d'arrivée. Seul le meilleur coup de Stockfish est validé : un autre coup peut être bon aussi, surtout dans une position déjà gagnante. Vérifie-le avec le lien « Analyse ».</div></section>
+</div>
 
-<div class="part">5 · Historique</div>
+<div class="tab" data-tab="historique" hidden>
 <section class="panel"><h2>Historique des parties</h2><div class="filters"><input id="search" placeholder="Filtrer adversaire / ouverture…"><select id="resultFilter"><option value="">Tous les résultats</option><option>Victoire</option><option>Nulle</option><option>Défaite</option></select><button id="csvBtn">Télécharger CSV</button></div>
 <div class="tablewrap"><table><thead><tr><th>Date</th><th>Cadence</th><th>Couleur</th><th>Résultat</th><th>Fin</th><th class="num">Elo</th><th>Adversaire</th><th class="num">Elo adv.</th><th class="num">Précision</th><th class="num">Gaffes</th><th>Ouverture</th><th>Lien</th></tr></thead><tbody id="games"></tbody></table></div>
 <div class="note">Données issues de l'API publique __SITE__. « Précision » : celle de __SITE__ si disponible, sinon l'estimation Stockfish (marquée *).</div></section>
+</div>
 </main>
 <script>
 const D=__DATA__;const T=D.thresholds;
@@ -658,8 +675,11 @@ const PHASE={ouverture:'Ouverture',milieu:'Milieu de partie',finale:'Finale'};
 D.games.forEach((g,i)=>{g.i=i;g.pts=g.resultat==='Victoire'?1:g.resultat==='Nulle'?.5:0});
 $('subtitle').textContent='@'+D.username+' · '+D.period+' · '+D.games.length+' parties';$('generated').textContent='Généré le '+D.generated;
 Chart.defaults.color='#a9b6c8';Chart.defaults.borderColor='#2b394b';Chart.defaults.font.family='system-ui,sans-serif';
-const charts={};
-function chart(id,cfg){charts[id]?.destroy();charts[id]=new Chart($(id),cfg)}
+const charts={},pendingCharts={};
+function chart(id,cfg){charts[id]?.destroy();delete charts[id];
+ if($(id).offsetParent===null){pendingCharts[id]=cfg;return}   // onglet masqué : le graphique sera créé à son affichage
+ delete pendingCharts[id];charts[id]=new Chart($(id),cfg)}
+const drawPendingCharts=()=>Object.keys(pendingCharts).forEach(id=>$(id).offsetParent!==null&&chart(id,pendingCharts[id]));
 const barOpts=(extra={})=>({responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{boxWidth:12}}},...extra});
 
 const cadences=[...new Set(D.games.map(g=>g.cadence))].sort((a,b)=>D.games.filter(g=>g.cadence===b).length-D.games.filter(g=>g.cadence===a).length);
@@ -751,6 +771,7 @@ function renderOpenings(G){const rows=openingRows(G,$('oGroup').value,+$('oMin')
 /* ---------- Stockfish ---------- */
 function renderSF(G,GA){const A=sfAgg(G);
  const analysedCads=[...new Set(D.games.filter(g=>g.sf).map(g=>g.cadence))];
+ $('prioPanel').hidden=!A;
  if(!A){$('sfBlock').hidden=true;$('sfMissing').hidden=false;
   $('sfMissing').textContent=analysedCads.length?`Aucune partie analysée dans cette sélection. Cadences analysées : ${analysedCads.join(', ')}. Pour en ajouter : python chess_dashboard_generator.py --cadences ${[...new Set([...analysedCads,$('fCadence').value||'blitz'])].join(',')}`:'Aucune partie analysée par Stockfish. Lance : python chess_dashboard_generator.py';return}
  $('sfBlock').hidden=false;$('sfMissing').hidden=true;
@@ -856,7 +877,8 @@ function buildQueue(all){const now=Date.now();
  due.sort((a,b)=>(!a.s)-(!b.s)||(a.s?a.s.due-b.s.due:(b.m.g-a.m.g)||(a.m.ply-b.m.ply)));
  queue=due.map(c=>c.m);cur=null;nextCard()}
 function updateStats(){const cards=deckCards($('tDeck').value),mastered=cards.filter(m=>(srs[cardId(m)]?.b||0)>=3).length;
- $('tStats').textContent=`${queue.length+(cur&&!cur.done?1:0)} à faire · ${mastered}/${cards.length} maîtrisées · séance : ${session.ok}/${session.n} réussies du premier coup`}
+ const todo=queue.length+(cur&&!cur.done?1:0);$('cta').textContent=todo?`S'entraîner · ${todo} positions →`:'S\'entraîner →';
+ $('tStats').textContent=`${todo} à faire · ${mastered}/${cards.length} maîtrisées · séance : ${session.ok}/${session.n} réussies du premier coup`}
 function setFeedback(cls,html){$('tFeedback').className='feedback '+cls;$('tFeedback').innerHTML=html}
 const gameNote=()=>`En partie, tu as joué <b>${esc(cur.m.san)}</b> : tes chances de gain sont passées de ${cur.m.wb} % à ${cur.m.wa} %.`;
 
@@ -923,6 +945,17 @@ $('csvBtn').onclick=()=>{const keys=['date','cadence','couleur','resultat','fin'
  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'}));a.download='chess_games.csv';a.click();URL.revokeObjectURL(a.href)};
 if(cadences.includes('rapid')&&D.games.some(g=>g.sf&&g.cadence==='rapid'))$('fCadence').value='rapid';
 render();
+
+/* ---------- onglets ---------- */
+const TABS=[...document.querySelectorAll('#tabs a')].map(a=>a.dataset.tab);
+function showTab(t){if(!TABS.includes(t))t=TABS[0];
+ document.querySelectorAll('.tab').forEach(s=>s.hidden=s.dataset.tab!==t);
+ document.querySelectorAll('#tabs a').forEach(a=>a.classList.toggle('active',a.dataset.tab===t));
+ if(location.hash!=='#'+t)history.replaceState(null,'','#'+t);
+ try{localStorage.setItem('chess-up:onglet',t)}catch(e){}
+ drawPendingCharts();window.scrollTo(0,0)}
+addEventListener('hashchange',()=>showTab(location.hash.slice(1)));
+showTab(location.hash.slice(1)||(()=>{try{return localStorage.getItem('chess-up:onglet')}catch(e){return null}})());
 </script></body></html>'''
 
 if __name__ == "__main__":
