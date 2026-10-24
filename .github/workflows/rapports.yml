@@ -34,6 +34,12 @@ jobs:
 
       - run: sudo apt-get update && sudo apt-get install -y stockfish
 
+      # Si un test échoue, rien n'est publié : le site garde la version précédente.
+      - name: Tests
+        run: python -m unittest discover -s tests -v
+        env:
+          STOCKFISH_PATH: /usr/games/stockfish
+
       # Liste des joueurs et mots de passe : contenu de amis.txt, stocké dans le secret AMIS du dépôt.
       # Les mots de passe sont masqués dans les journaux, qui sont publics.
       - name: Liste des joueurs
@@ -54,6 +60,7 @@ jobs:
           path: |
             cache/parties
             cache/analyses.ci.json
+            cache/objectifs.json
           key: chess-cache-${{ github.run_id }}
           restore-keys: chess-cache-
 

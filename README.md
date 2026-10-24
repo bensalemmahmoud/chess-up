@@ -73,6 +73,19 @@ Les analyses sont gardées dans `cache/`. **Les exécutions suivantes n'analysen
 
 Ce sont des indicateurs statistiques. Ils montrent où regarder ; ils ne remplacent pas l'analyse de tes parties.
 
+## Ce que contient le tableau de bord
+
+| Onglet | Contenu |
+|---|---|
+| **Accueil** | Chiffres clés, tes 3 priorités d'entraînement, et l'**objectif +200 Elo** : tes indicateurs Stockfish comparés à ceux de joueurs 200 points au-dessus de toi dans ta cadence principale. Ces joueurs sont choisis parmi tes propres adversaires, puis parmi leurs adversaires du même niveau ; l'échantillon est renouvelé tous les 30 jours. |
+| **Statistiques** | Résultats, ouvertures, et **Mon répertoire** : tes ouvertures coup par coup, ton score dans chaque ligne, et les coups où Stockfish recommande mieux. |
+| **Analyse** | Ta progression mois par mois, erreurs par phase, causes des défaites, moments critiques, positions gagnantes non converties. |
+| **S'entraîner** | Exercices sur tes propres positions, avec répétition espacée. Les autres coups que Stockfish juge presque aussi bons sont acceptés. Après un exercice, « Jouer la suite contre Stockfish » te fait continuer la partie dans le navigateur. « Synchroniser mes appareils » transfère ta progression d'un appareil à l'autre par un lien. |
+| **Adversaire** | Entre le pseudo d'un adversaire : ses parties récentes sont analysées pour trouver ses ouvertures, ses points forts et ses points faibles. |
+| **Historique** | Toutes les parties, avec recherche et export CSV. |
+
+La première exécution après une mise à jour peut être plus longue : Stockfish calcule les coups alternatifs des parties déjà analysées, et les parties de l'échantillon de l'objectif.
+
 ## Plusieurs joueurs : le fichier `amis.txt`
 
 `amis.txt` liste les joueurs, un par ligne, avec les mêmes options qu'en ligne de commande :
@@ -134,7 +147,17 @@ chess_dashboard_generator.py
 chess_analysis.py
 requirements.txt
 README.md
+templates/
+tests/
 web/
 ```
 
 Le fichier `.gitignore` exclut déjà ces dossiers si tu publies le projet sur GitHub.
+
+## Tests
+
+```
+python -m unittest discover -s tests
+```
+
+Ils vérifient les calculs Stockfish, la lecture des parties, le répertoire, l'échantillon de l'objectif et le chiffrement. Sur GitHub, ils sont lancés avant chaque publication : si l'un échoue, le site garde sa version précédente.

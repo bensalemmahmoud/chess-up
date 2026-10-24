@@ -18,6 +18,8 @@ OPENING_END_PLY = 24    # position évaluée « en sortie d'ouverture » : aprè
 # Seuils de perte de chances de gain (en points de %), les mêmes que Lichess
 INACCURACY, MISTAKE, BLUNDER = 10, 20, 30
 WINNING = 80            # au-dessus : position considérée comme gagnante (≈ +4)
+ALTERNATIVES = 3        # coups candidats calculés aux positions d'erreur, pour accepter d'autres bons coups à l'entraînement
+OPENING_PLIES = 20      # demi-coups couverts par le répertoire d'ouvertures
 
 
 STOCKFISH_DIR = Path(__file__).resolve().parent / "stockfish"
@@ -92,6 +94,26 @@ def analyse_pgn(engine, pgn, depth):
     return {"v": CACHE_VERSION, "d": depth, "e": evals, "b": best}
 
 
+def is_mistake(before, after):
+    """Perte de chances de gain d'au moins MISTAKE, ou mat rapide manqué (évaluations du point de vue du joueur au trait)."""
+    return win_pct(before) - win_pct(after) >= MISTAKE or (before >= MATE - 3 and after < MATE - 50)
+
+
+def analyse_alternatives(engine, pgn, analysis, depth):
+    """Aux positions où le joueur au trait (Blancs ou Noirs) s'est trompé, les ALTERNATIVES meilleurs coups de Stockfish :
+    {demi-coup: [[coup uci, évaluation du point de vue des Blancs], ...]}. Sert à valider d'autres bons coups à l'entraînement."""
+    game = chess.pgn.read_game(io.StringIO(pgn))
+    board, evals, alts = game.board(), analysis["e"], {}
+    for ply, move in enumerate(game.mainline_moves()):
+        if ply + 1 < len(evals):
+            sign = 1 if board.turn == chess.WHITE else -1
+            if is_mistake(sign * evals[ply], sign * evals[ply + 1]):
+                infos = engine.analyse(board, chess.engine.Limit(depth=depth), multipv=ALTERNATIVES)
+                alts[str(ply)] = [[i["pv"][0].uci(), i["score"].white().score(mate_score=MATE)] for i in infos if i.get("pv")]
+        board.push(move)
+    return alts
+
+
 def load_cache(path):
     try:
         return json.loads(Path(path).read_text(encoding="utf-8"))
@@ -102,16 +124,25 @@ def load_cache(path):
 def save_cache(path, cache):
     tmp = Path(str(path) + ".tmp")
     tmp.write_text(json.dumps(cache, separators=(",", ":")), encoding="utf-8")
-    tmp.replace(path)
+    for attempt in range(10):   # sous Windows, le remplacement échoue si un autre programme lit le fichier à cet instant
+        try:
+            tmp.replace(path)
+            return
+        except PermissionError:
+            if attempt == 9:
+                raise
+            time.sleep(0.5)
 
 
-def analyse_games(games, cache_path, depth=14, workers=None, stockfish=None):
-    """games : liste de dicts {"lien", "pgn"}. Remplit le cache et le renvoie."""
+def analyse_games(games, cache_path, depth=14, workers=None, stockfish=None, alternatives=True):
+    """games : liste de dicts {"lien", "pgn"}. Remplit le cache et le renvoie.
+    alternatives=False : sans les coups alternatifs (inutiles hors entraînement, par exemple pour l'objectif +200 Elo)."""
     cache = load_cache(cache_path)
-    todo = [g for g in games
-            if g["pgn"] and not (cache.get(g["lien"], {}).get("v") == CACHE_VERSION
-                                 and cache[g["lien"]].get("d", 0) >= depth)]
-    if not todo:
+    up_to_date = lambda g: cache.get(g["lien"], {}).get("v") == CACHE_VERSION and cache[g["lien"]].get("d", 0) >= depth
+    todo = [g for g in games if g["pgn"] and not up_to_date(g)]
+    # parties analysées avant l'ajout des coups alternatifs : seul ce complément est calculé
+    todo_alts = [g for g in games if alternatives and g["pgn"] and up_to_date(g) and "a" not in cache[g["lien"]]]
+    if not todo and not todo_alts:
         print(f"Analyse Stockfish : les {len(games)} parties sont déjà en cache.")
         return cache
 
@@ -122,7 +153,8 @@ def analyse_games(games, cache_path, depth=14, workers=None, stockfish=None):
         return cache
 
     workers = workers or max(1, (os.cpu_count() or 2) - 2)
-    print(f"Analyse Stockfish de {len(todo)} parties (profondeur {depth}, {workers} moteurs en parallèle)...")
+    print(f"Analyse Stockfish de {len(todo)} parties" + (f", coups alternatifs de {len(todo_alts)} autres" if todo_alts else "")
+          + f" (profondeur {depth}, {workers} moteurs en parallèle)...")
     local, engines, lock = threading.local(), [], threading.Lock()
 
     def engine():
@@ -133,13 +165,16 @@ def analyse_games(games, cache_path, depth=14, workers=None, stockfish=None):
                 engines.append(local.engine)
         return local.engine
 
-    def job(g):
-        return g["lien"], analyse_pgn(engine(), g["pgn"], depth)
+    def job(g, full):
+        result = analyse_pgn(engine(), g["pgn"], depth) if full else dict(cache[g["lien"]])
+        if alternatives:
+            result["a"] = analyse_alternatives(engine(), g["pgn"], result, depth)
+        return g["lien"], result
 
-    start, done = time.time(), 0
+    start, done, total = time.time(), 0, len(todo) + len(todo_alts)
     try:
         with ThreadPoolExecutor(max_workers=workers) as pool:
-            futures = [pool.submit(job, g) for g in todo]
+            futures = [pool.submit(job, g, True) for g in todo] + [pool.submit(job, g, False) for g in todo_alts]
             for fut in as_completed(futures):
                 try:
                     link, result = fut.result()
@@ -147,11 +182,11 @@ def analyse_games(games, cache_path, depth=14, workers=None, stockfish=None):
                 except Exception as exc:  # une partie illisible ne doit pas tout arrêter
                     print(f"  partie ignorée : {exc}")
                 done += 1
-                if done % 25 == 0 or done == len(todo):
+                if done % 25 == 0 or done == total:
                     save_cache(cache_path, cache)
                     elapsed = time.time() - start
-                    eta = elapsed / done * (len(todo) - done)
-                    print(f"  {done}/{len(todo)} parties analysées — reste environ {eta/60:.0f} min")
+                    eta = elapsed / done * (total - done)
+                    print(f"  {done}/{total} parties analysées — reste environ {eta/60:.0f} min")
     finally:
         save_cache(cache_path, cache)
         for e in engines:
@@ -232,12 +267,18 @@ def game_metrics(row, pgn, analysis):
                 if best[ply]:
                     try: best_san = board.san(chess.Move.from_uci(best[ply]))
                     except ValueError: pass
+                # autres coups qui ne perdent pas plus qu'une imprécision par rapport à la position
+                alts = []
+                for uci, cp in analysis.get("a", {}).get(str(ply), []):
+                    if uci != best[ply] and wb - win_pct(sign * cp) < INACCURACY:
+                        try: alts.append(board.san(chess.Move.from_uci(uci)))
+                        except ValueError: pass
                 moments.append({
                     "ply": ply, "n": f"{board.fullmove_number}{'.' if board.turn == chess.WHITE else '...'}",
                     "san": board.san(move), "best": best_san, "fen": board.fen(),
                     "wb": round(wb), "wa": round(wa), "ph": ph, "zt": zeit,
                     "sev": sev or "mat", "occ": bool(opp_gift and sev), "mm": mate_missed,
-                    "clk": round(clock) if clock is not None else None,
+                    "clk": round(clock) if clock is not None else None, "alts": alts,
                 })
             if loss >= MISTAKE and (decisive is None or loss > decisive["loss"]):
                 decisive = {"loss": round(loss), "ph": ph, "zt": zeit, "ply": ply}
@@ -256,3 +297,26 @@ def game_metrics(row, pgn, analysis):
         "decisive": decisive,
     }
     return metrics, moments
+
+
+def opening_positions(row, pgn, analysis, max_ply=OPENING_PLIES):
+    """Positions d'ouverture où le joueur a le trait, pour son répertoire :
+    [(coups qui y mènent, meilleur coup, chances de gain avant, coup joué, chances après), ...]."""
+    game = chess.pgn.read_game(io.StringIO(pgn))
+    me = chess.WHITE if row["couleur"] == "Blancs" else chess.BLACK
+    sign = 1 if me == chess.WHITE else -1
+    evals, best = analysis["e"], analysis["b"]
+    board, sans, out = game.board(), [], []
+    for ply, move in enumerate(game.mainline_moves()):
+        if ply >= max_ply or ply + 1 >= len(evals):
+            break
+        san = board.san(move)
+        if board.turn == me:
+            best_san = ""
+            if best[ply]:
+                try: best_san = board.san(chess.Move.from_uci(best[ply]))
+                except ValueError: pass
+            out.append((" ".join(sans), best_san, win_pct(sign * evals[ply]), san, win_pct(sign * evals[ply + 1])))
+        sans.append(san)
+        board.push(move)
+    return out
