@@ -13,7 +13,14 @@ button:disabled{opacity:.6}#msg{min-height:20px;margin-top:12px;font-size:14px;c
 <label><input type="checkbox" id="keep" checked> Se souvenir sur cet appareil</label>
 <button id="go">Ouvrir</button><div id="msg"></div></form>
 <script>
-const SALT='__SALT__',IV='__IV__',ITER=__ITER__,CIPHER='__CIPHER__';
+const SALT='__SALT__',IV='__IV__',ITER=__ITER__,BUILD='__BUILD__',CIPHER='__CIPHER__';
+// Le navigateur (ou l'application installée) peut garder une ancienne copie de la page en cache :
+// si une version plus récente est publiée, on recharge une fois, à une adresse qui contourne le cache.
+// À vérifier AVANT d'afficher le rapport : document.open() interromprait la requête. Sans réponse en 2,5 s (hors ligne), on continue.
+const reloading=Promise.race([fetch('../version.txt?'+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'').then(v=>{v=v.trim();
+ if(!/^\d+$/.test(v)||+v<=+BUILD)return false;
+ const once='chess-up:recharge:'+v;try{if(sessionStorage.getItem(once))return false;sessionStorage.setItem(once,'1')}catch(e){return false}
+ location.replace(location.pathname+'?v='+v+location.hash);return true}).catch(()=>false),new Promise(r=>setTimeout(()=>r(false),2500))]);
 const KEY='chess-up:cle:'+location.pathname.replace(/index\.html$/,'');
 const bytes=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
 const b64=buf=>btoa(String.fromCharCode(...new Uint8Array(buf)));
@@ -23,7 +30,7 @@ async function derive(pw){const base=await crypto.subtle.importKey('raw',new Tex
 async function decrypt(key){const buf=await crypto.subtle.decrypt({name:'AES-GCM',iv:bytes(IV)},key,bytes(CIPHER));
  return new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).text()}
 function show(html){document.open();document.write(html);document.close()}
-async function auto(){const saved=store.get();if(saved){try{const key=await crypto.subtle.importKey('raw',bytes(saved),'AES-GCM',true,['decrypt']);return show(await decrypt(key))}catch(e){store.del()}}
+async function auto(){if(await reloading)return;const saved=store.get();if(saved){try{const key=await crypto.subtle.importKey('raw',bytes(saved),'AES-GCM',true,['decrypt']);return show(await decrypt(key))}catch(e){store.del()}}
  document.getElementById('f').hidden=false;document.getElementById('pw').focus()}
 document.getElementById('f').onsubmit=async e=>{e.preventDefault();const go=document.getElementById('go'),msg=document.getElementById('msg');
  go.disabled=true;go.textContent='Ouverture…';msg.textContent='';

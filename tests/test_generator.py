@@ -145,6 +145,26 @@ class Publishing(unittest.TestCase):
         clear = AESGCM(key).decrypt(field("IV"), field("CIPHER"), None)
         self.assertEqual(gzip.decompress(clear).decode(), page)
 
+    def test_lock_page_carries_the_build(self):
+        try:
+            import cryptography  # noqa: F401
+        except ImportError:
+            self.skipTest("cryptography n'est pas installé")
+        self.assertRegex(gen.BUILD, r"^\d{14}$")
+        self.assertIn(f"BUILD='{gen.BUILD}'", gen.encrypt_page("x", "pw", "bob"))
+
+    def test_public_index_publishes_the_version(self):
+        import tempfile
+        saved = gen.SITE_DIR
+        with tempfile.TemporaryDirectory() as tmp:
+            gen.SITE_DIR = Path(tmp)
+            try:
+                gen.write_public_index()
+                self.assertEqual((gen.SITE_DIR / "version.txt").read_text(encoding="utf-8"), gen.BUILD)
+                self.assertNotIn("__CARDS__", (gen.SITE_DIR / "index.html").read_text(encoding="utf-8"))
+            finally:
+                gen.SITE_DIR = saved
+
     def test_salt_is_stable_per_player(self):
         try:
             import cryptography  # noqa: F401

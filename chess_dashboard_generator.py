@@ -24,8 +24,9 @@ DEFAULT_MONTHS = 6                       # période par défaut : le mois en cou
 BASE_DIR = Path(__file__).resolve().parent
 REPORTS_DIR = BASE_DIR / "rapports"
 SITE_DIR = BASE_DIR / "site"                 # version publiée (--publier) : rapports chiffrés uniquement
-PBKDF2_ITERATIONS = 600_000
-TEMPLATES_DIR = BASE_DIR / "templates"                  # dérivation de la clé de chiffrement à partir du mot de passe
+PBKDF2_ITERATIONS = 600_000                  # dérivation de la clé de chiffrement à partir du mot de passe
+BUILD = datetime.now().strftime("%Y%m%d%H%M%S")   # version de cette publication (site/version.txt) : les pages plus anciennes se rechargent
+TEMPLATES_DIR = BASE_DIR / "templates"
 CACHE_DIR = BASE_DIR / "cache"
 ANALYSIS_CACHE = CACHE_DIR / "analyses.json"   # partagé entre joueurs : une partie entre deux amis n'est analysée qu'une fois
 OBJECTIVES_CACHE = CACHE_DIR / "objectifs.json"   # échantillons de joueurs plus forts, partagés entre joueurs de même niveau
@@ -597,7 +598,7 @@ def encrypt_page(page, password, name):
     data = AESGCM(key).encrypt(iv, gzip.compress(page.encode("utf-8")), None)
     b64 = lambda b: base64.b64encode(b).decode()
     return (template("verrou.html").replace("__SALT__", b64(salt)).replace("__IV__", b64(iv))
-            .replace("__ITER__", str(PBKDF2_ITERATIONS)).replace("__CIPHER__", b64(data)))
+            .replace("__ITER__", str(PBKDF2_ITERATIONS)).replace("__BUILD__", BUILD).replace("__CIPHER__", b64(data)))
 
 def write_manifest(out_dir, user, page):
     """Manifeste propre à chaque rapport : installé sur l'écran d'accueil, il ouvre directement ce rapport."""
@@ -616,6 +617,7 @@ def write_public_index():
                                                          "Les rapports sont privés : ouvre le lien personnel qu'on t'a envoyé.")
     (SITE_DIR / "index.html").write_text(page.replace("__GENERATED__", datetime.now().strftime("%Y-%m-%d %H:%M")), encoding="utf-8")
     (SITE_DIR / "robots.txt").write_text("User-agent: *\nDisallow: /\n", encoding="utf-8")
+    (SITE_DIR / "version.txt").write_text(BUILD, encoding="utf-8")
     print(f"\nSite prêt à publier : {SITE_DIR}")
 
 
