@@ -13,7 +13,6 @@ function renderRepertoire(G){
  const board=new Chess();repPath.forEach(s=>board.move(s,{sloppy:true}));
  $('repBoard').innerHTML=boardHTML(board,repColor==='Noirs',{last:(()=>{const h=board.history({verbose:true}).pop();return h?[h.from,h.to]:[]})()});
  $('repPath').innerHTML=[`<a href="#" data-i="0">Début</a>`,...repPath.map((s,i)=>`<a href="#" data-i="${i+1}">${esc(moveLabel(i,s))}</a>`)].join(' › ');
- $('repPath').scrollLeft=$('repPath').scrollWidth;   // le dernier coup reste visible, sur une seule ligne
  $('repBack').disabled=$('repStart').disabled=!repPath.length;$('repFwd').disabled=!repRedo.length;
  const sc=score(here);
  $('repInfo').innerHTML=here.length?`${here.length} parties dans cette position · ton score : <b>${fmt(sc.s)} %</b> (${vnd(sc)})`
