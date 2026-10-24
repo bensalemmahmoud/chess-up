@@ -23,7 +23,7 @@ let topCause=null,deckChosen=false,queue=[],cur=null,session={ok:0,n:0},trIds=ne
 // Échiquier en HTML : marks = {last:[cases], sel, hint, targets:[{to, capture}]}
 function boardHTML(G,flip,marks={}){let h='';
  for(let r=0;r<8;r++)for(let c=0;c<8;c++){const f=flip?7-c:c,rk=flip?r+1:8-r,sq='abcdefgh'[f]+rk,p=G.get(sq),t=(marks.targets||[]).some(x=>x.to===sq);
-  const cls=['sq',(f+rk)%2?'light':'dark'];
+  const cls=['sq',(f+rk)%2?'dark':'light'];   // a1 (f=0, rangée 1) est une case foncée
   if(marks.last&&marks.last.includes(sq))cls.push('last');if(marks.sel===sq)cls.push('sel');if(marks.hint===sq)cls.push('hint');if(t)cls.push('target',p?'capt':'');
   h+=`<div class="${cls.join(' ')}" data-sq="${sq}">${c===0?`<span class="coord r">${rk}</span>`:''}${r===7?`<span class="coord f">${'abcdefgh'[f]}</span>`:''}${p?`<span class="pc ${p.color}">${GLYPH[p.type]}</span>`:''}</div>`}
  return h}
@@ -59,10 +59,10 @@ function grade(ok){const id=cardId(cur.m),s=srs[id]||{b:0,n:0};
 
 function nextCard(){if(cur&&!cur.done&&cur.failed)grade(false);cur=null;
  while(queue.length&&!cur){const m=queue.shift(),best=new Chess(m.fen).move(m.best,{sloppy:true});
-  if(best)cur={m,g:D.games[m.g],game:new Chess(m.fen),best,color:m.fen.split(' ')[1],sel:null,last:null,hint:false,failed:false,done:false,locked:false,pv:null}}
+  if(best)cur={m,g:D.games[m.g],game:new Chess(m.fen),best,color:m.fen.split(' ')[1],sel:null,last:null,hint:false,failed:false,done:false,locked:false,pv:null,redo:[],wins:{}}}
  if(!cur){$('board').innerHTML='';$('tMeta').textContent='';$('tTitle').textContent='Rien à revoir aujourd\'hui dans ce thème';$('tLinks').innerHTML='';setFeedback('','');
   $('tPrompt').innerHTML='Change de thème, ou <a href="#" id="tAll">reprends toutes les positions de ce thème</a>.';$('tAll').onclick=e=>{e.preventDefault();buildQueue(true)};
-  $('tHint').disabled=$('tSolve').disabled=true;$('tPlay').hidden=true;updateStats();return}
+  $('tHint').disabled=$('tSolve').disabled=$('tBack').disabled=$('tFwd').disabled=true;$('tPlay').hidden=true;updateStats();return}
  const g=cur.g,m=cur.m;
  $('tMeta').textContent=m.rep?`Ton répertoire · position rencontrée dans ${m.count} parties · ${PHASE[m.ph]}`:`${g.date} · ${g.cadence} · contre ${g.adversaire} (${g.elo_adversaire}) · ${PHASE[m.ph]}`;
  $('tTitle').textContent=`Coup ${m.n.replace(/\.+$/,'')} · les ${cur.color==='w'?'Blancs':'Noirs'} jouent`;
@@ -77,6 +77,7 @@ function draw(){const c=cur,mine=!c.pv||c.game.turn()===c.color;
  const targets=c.sel&&mine?c.game.moves({square:c.sel,verbose:true}):[];
  $('board').innerHTML=boardHTML(c.game,c.color==='b',{last:c.last,sel:c.sel,hint:c.hint&&!c.done?c.best.from:null,targets});
  $('tHint').disabled=$('tSolve').disabled=c.done;
+ $('tBack').disabled=!c.done||c.locked||!c.game.history().length;$('tFwd').disabled=c.locked||!c.redo.length;
  $('tPlay').hidden=!c.done;$('tPlay').textContent=c.pv?'Arrêter la partie':'Jouer la suite contre Stockfish'}
 
 function play(from,to){const c=cur,m=c.m,isBest=from===c.best.from&&to===c.best.to;
@@ -102,18 +103,30 @@ function playoutStep(){const c=cur,[cls,msg]=playoutStatus();setFeedback(cls,msg
  if(c.pv.over||c.game.turn()===c.color)return;
  c.locked=true;setFeedback('','Stockfish réfléchit…');
  Engine.move(c.game.fen(),700).then(r=>{if(cur!==c||!c.pv)return;
-  c.game.move({from:r.from,to:r.to,promotion:r.promotion||'q'});c.last=[r.from,r.to];c.pv.win=winPct(-r.score);c.locked=false;playoutStep()})
+  c.game.move({from:r.from,to:r.to,promotion:r.promotion||'q'});c.last=[r.from,r.to];c.pv.win=winPct(-r.score);c.wins[c.game.history().length]=c.pv.win;c.locked=false;playoutStep()})
  .catch(()=>{if(cur!==c)return;c.locked=false;c.pv=null;setFeedback('ko','Stockfish n\'a pas pu démarrer (connexion internet nécessaire).');draw()})}
 $('tPlay').onclick=()=>{const c=cur;if(!c||!c.done)return;
  if(c.pv){c.pv=null;c.locked=false;setFeedback('','Partie arrêtée.');draw();return}
- c.pv={moves:0,win:null,start:c.m.wb,over:false};c.sel=null;playoutStep()};
+ c.pv={moves:0,win:null,start:c.m.wb,over:false,base:c.game.history().length};c.redo=[];c.sel=null;playoutStep()};
+
+/* Coup précédent / suivant : une fois l'exercice terminé, et pendant la partie contre Stockfish (pour reprendre une gaffe) */
+function afterNav(){const c=cur,h=c.game.history({verbose:true}),l=h[h.length-1];c.last=l?[l.from,l.to]:null;c.sel=null;
+ if(c.pv){c.pv.over=false;c.pv.win=c.wins[h.length]??null;c.pv.moves=h.slice(c.pv.base).filter(m=>m.color===c.color).length;
+  if(c.game.turn()!==c.color&&!c.redo.length)return playoutStep();   // plus rien à rejouer : Stockfish répond
+  const [cls,msg]=playoutStatus();setFeedback(cls,msg)}
+ draw()}
+$('tBack').onclick=()=>{const c=cur;if(!c||!c.done||c.locked||!c.game.history().length)return;
+ c.redo.push(c.game.undo());
+ if(c.pv&&c.game.turn()!==c.color&&c.game.history().length)c.redo.push(c.game.undo());   // contre Stockfish : retour à ton tour
+ afterNav()};
+$('tFwd').onclick=()=>{const c=cur;if(!c||c.locked||!c.redo.length)return;c.game.move(c.redo.pop());afterNav()};
 
 $('board').addEventListener('click',e=>{const el=e.target.closest('.sq'),c=cur;if(!el||!c||c.locked)return;
  if(c.done&&(!c.pv||c.pv.over||c.game.turn()!==c.color))return;
  const sq=el.dataset.sq,p=c.game.get(sq);
  if(c.sel&&c.game.moves({square:c.sel,verbose:true}).some(x=>x.to===sq)){
   if(!c.pv)return play(c.sel,sq);
-  c.game.move({from:c.sel,to:sq,promotion:'q'});c.last=[c.sel,sq];c.sel=null;c.pv.moves++;return playoutStep()}
+  c.game.move({from:c.sel,to:sq,promotion:'q'});c.last=[c.sel,sq];c.sel=null;c.redo=[];c.pv.moves++;return playoutStep()}
  c.sel=p&&p.color===c.game.turn()&&c.sel!==sq?sq:null;draw()});
 $('tHint').onclick=()=>{if(!cur||cur.done)return;cur.hint=true;setFeedback('',`Indice : c'est un coup ${PIECE[cur.best.piece]} (case surlignée).`);draw()};
 $('tSolve').onclick=()=>{if(!cur||cur.done||cur.locked)return;cur.failed=true;grade(false);cur.game.move(cur.best.san);cur.last=[cur.best.from,cur.best.to];cur.sel=null;

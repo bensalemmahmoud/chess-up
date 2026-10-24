@@ -1,7 +1,7 @@
 /* ---------- répertoire d'ouvertures ---------- */
 // Arbre des premiers coups de tes parties (g.coups), et évaluation Stockfish des positions où tu as le trait
 // (D.repertoire : {coups qui y mènent: {b: meilleur coup, w: chances de gain, m: {coup joué: chances après}}}).
-let repPath=[],repColor='Blancs',repCardsCache=null;
+let repPath=[],repRedo=[],repColor='Blancs',repCardsCache=null;   // repRedo : coups annulés par ◀, rejoués par ▶
 const myTurn=(ply,color)=>ply%2===(color==='Blancs'?0:1);
 const moveLabel=(ply,san)=>`${Math.floor(ply/2)+1}${ply%2?'...':'.'}${san}`;
 
@@ -13,6 +13,8 @@ function renderRepertoire(G){
  const board=new Chess();repPath.forEach(s=>board.move(s,{sloppy:true}));
  $('repBoard').innerHTML=boardHTML(board,repColor==='Noirs',{last:(()=>{const h=board.history({verbose:true}).pop();return h?[h.from,h.to]:[]})()});
  $('repPath').innerHTML=[`<a href="#" data-i="0">Début</a>`,...repPath.map((s,i)=>`<a href="#" data-i="${i+1}">${esc(moveLabel(i,s))}</a>`)].join(' › ');
+ $('repPath').scrollLeft=$('repPath').scrollWidth;   // le dernier coup reste visible, sur une seule ligne
+ $('repBack').disabled=$('repStart').disabled=!repPath.length;$('repFwd').disabled=!repRedo.length;
  const sc=score(here);
  $('repInfo').innerHTML=here.length?`${here.length} parties dans cette position · ton score : <b>${fmt(sc.s)} %</b> (${vnd(sc)})`
   +(mine?(sf?` · Stockfish conseille <b>${esc(sf.b)}</b>`:''):' · c\'est à ton adversaire de jouer'):'Aucune partie dans cette position avec les filtres actuels.';
@@ -27,9 +29,15 @@ function renderRepertoire(G){
  $('repMoves').innerHTML=rows||`<tr><td colspan="5" class="empty">${here.length?'Fin des coups enregistrés pour cette ligne.':'—'}</td></tr>`;
  $('repHead').innerHTML=`<th>${mine?'Ton coup':'Coup adverse'}</th><th class="num">Parties</th><th class="num">Fréquence</th><th class="num">Ton score</th><th>Stockfish</th>`}
 
-$('repMoves').addEventListener('click',e=>{const tr=e.target.closest('tr[data-san]');if(!tr)return;repPath.push(tr.dataset.san);renderRepertoire(baseFilter(false))});
-$('repPath').addEventListener('click',e=>{const a=e.target.closest('a[data-i]');if(!a)return;e.preventDefault();repPath=repPath.slice(0,+a.dataset.i);renderRepertoire(baseFilter(false))});
-$('repColor').addEventListener('change',e=>{repColor=e.target.value;repPath=[];renderRepertoire(baseFilter(false))});
+const repGo=()=>renderRepertoire(baseFilter(false));
+const repCut=n=>{repRedo=[...repRedo,...repPath.slice(n).reverse()];repPath=repPath.slice(0,n);repGo()};   // revenir au coup n
+$('repMoves').addEventListener('click',e=>{const tr=e.target.closest('tr[data-san]');if(!tr)return;const san=tr.dataset.san;
+ if(repRedo[repRedo.length-1]===san)repRedo.pop();else repRedo=[];repPath.push(san);repGo()});
+$('repPath').addEventListener('click',e=>{const a=e.target.closest('a[data-i]');if(!a)return;e.preventDefault();repCut(+a.dataset.i)});
+$('repBack').addEventListener('click',()=>repPath.length&&repCut(repPath.length-1));
+$('repStart').addEventListener('click',()=>repCut(0));
+$('repFwd').addEventListener('click',()=>{if(repRedo.length){repPath.push(repRedo.pop());repGo()}});
+$('repColor').addEventListener('change',e=>{repColor=e.target.value;repPath=[];repRedo=[];repGo()});
 
 // Positions de ton répertoire où ton coup habituel est imprécis : un thème d'entraînement à part
 function repertoireCards(){if(repCardsCache)return repCardsCache;
