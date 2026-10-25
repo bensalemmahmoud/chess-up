@@ -8,6 +8,12 @@ const DECKS={
  occ:['Occasions manquées',m=>m.occ],
  mm:['Mats manqués',m=>m.mm],
  temps:['Erreurs en zeitnot',m=>m.zt],
+ reflexe:['Erreurs jouées en réflexe',m=>m.tb===0],
+ defense:['Défense des positions inférieures',m=>m.wb<40&&m.sev!=='mat'],   // erreurs commises alors que tu étais déjà moins bien
+ materiel:['Matériel en prise',m=>(m.mot||[]).some(k=>k.startsWith('materiel'))],
+ fourchette:['Fourchettes',m=>(m.mot||[]).some(k=>k.startsWith('fourchette'))],
+ clouage:['Clouages',m=>(m.mot||[]).some(k=>k.startsWith('clouage'))],
+ matsubi:['Mats permis',m=>(m.mot||[]).includes('mat_subi')],
  tout:['Toutes mes erreurs',()=>true]};
 const CAUSE_DECK={temps:'temps',conversion:'conversion',ouverture:'ouverture',milieu:'milieu',finale:'finale',positionnel:'tout'};
 const SRS_KEY='chess-up:entrainement:'+D.username,INTERVALS=[0,1,3,7,16,35];   // jours avant de revoir une position, selon sa boîte

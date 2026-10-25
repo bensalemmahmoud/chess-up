@@ -6,6 +6,13 @@ const pct=(a,b)=>b?100*a/b:null;
 const CAD_COLORS={rapid:'#3987e5',blitz:'#d95926',daily:'#199e70',bullet:'#c98500',classical:'#8a63d2',correspondence:'#199e70',ultraBullet:'#e66767'};
 const FIN={cheat:'triche',resigned:'abandon',checkmated:'mat',timeout:'temps',abandoned:'déconnexion',agreed:'nulle acceptée',repetition:'répétition',stalemate:'pat',insufficient:'matériel insuffisant',timevsinsufficient:'temps / matériel insuff.','50move':'règle des 50 coups'};
 const PHASE={ouverture:'Ouverture',milieu:'Milieu de partie',finale:'Finale'};
+// « subi » : ce que la meilleure réponse adverse gagnait après ton coup ; « manqué » : ce que le meilleur coup gagnait
+const MOTIFS={materiel_subi:'Matériel laissé en prise',fourchette_subie:'Fourchette subie',clouage_subi:'Clouage subi',mat_subi:'Mat permis',
+ materiel_manque:'Gain de matériel manqué',fourchette_manquee:'Fourchette manquée',clouage_manque:'Clouage manqué',mat_manque:'Mat manqué'};
+Object.entries(MOTIFS).forEach(([k,l])=>$('mMotif').add(new Option(l,k)));
+// Temps de réflexion d'un coup, en part du temps total d'une partie (chess_analysis.TIME_BUCKETS)
+const TIME_LABELS=(()=>{const b=T.tps.map(x=>Math.round(x*100)),names=['Réflexe','Rapide','Normal','Longue réflexion'];
+ return names.map((n,i)=>n+' ('+(i===0?'< '+b[0]:i===b.length?'≥ '+b[b.length-1]:b[i-1]+'–'+b[i])+' %)')})();
 D.games.forEach((g,i)=>{g.i=i;g.pts=g.resultat==='Victoire'?1:g.resultat==='Nulle'?.5:0});
 $('subtitle').textContent='@'+D.username+' · '+D.period+' · '+D.games.length+' parties';$('generated').textContent='Généré le '+D.generated;
 Chart.defaults.color='#a9b6c8';Chart.defaults.borderColor='#2b394b';Chart.defaults.font.family='system-ui,sans-serif';
@@ -31,14 +38,25 @@ const gap=g=>(+g.elo_adversaire||0)-(+g.elo_joueur||0);
 /* ---------- agrégats Stockfish ---------- */
 function sfAgg(list){const a=list.filter(g=>g.sf);const n=a.length;if(!n)return null;
  const ph={ouverture:{coups:0,imp:0,err:0,gaf:0},milieu:{coups:0,imp:0,err:0,gaf:0},finale:{coups:0,imp:0,err:0,gaf:0}};
- let errs=0,zt=0,occ=0,mm=0,prec=0,acpl=0,np=0,winning=0,notConv=0,timeouts=0;
+ let errs=0,zt=0,occ=0,mm=0,prec=0,acpl=0,np=0,winning=0,notConv=0,timeouts=0,losing=0,saved=0,t15=0,nt15=0;
+ const tb={coups:T.tps.map(()=>0).concat(0),err:T.tps.map(()=>0).concat(0)};
  a.forEach(g=>{for(const p in ph)for(const k in ph[p])ph[p][k]+=g.sf.phases[p][k];
   const e=g.sf.phases;errs+=e.ouverture.err+e.ouverture.gaf+e.milieu.err+e.milieu.gaf+e.finale.err+e.finale.gaf;
   zt+=g.sf.zt_err;occ+=g.sf.occ;mm+=g.sf.mm;if(g.sf.prec!=null){prec+=g.sf.prec;acpl+=g.sf.acpl;np++}
   if(g.sf.max_win>=T.win){winning++;if(g.resultat!=='Victoire')notConv++}
+  if(g.sf.min_win!=null&&g.sf.min_win<=100-T.win){losing++;if(g.resultat!=='Défaite')saved++}   // position perdante sauvée
+  if(g.sf.tps)tb.coups.forEach((_,i)=>{tb.coups[i]+=g.sf.tps.coups[i];tb.err[i]+=g.sf.tps.err[i]});
+  if(g.sf.t15!=null){t15+=g.sf.t15;nt15++}
   if(g.resultat==='Défaite'&&g.fin==='timeout')timeouts++});
  const tot=k=>ph.ouverture[k]+ph.milieu[k]+ph.finale[k];
- return {n,a,ph,gaf:tot('gaf'),err:tot('err'),imp:tot('imp'),coups:tot('coups'),errs,zt,occ,mm,prec:np?prec/np:null,acpl:np?acpl/np:null,winning,notConv,timeouts}}
+ return {n,a,ph,gaf:tot('gaf'),err:tot('err'),imp:tot('imp'),coups:tot('coups'),errs,zt,occ,mm,prec:np?prec/np:null,acpl:np?acpl/np:null,winning,notConv,timeouts,losing,saved,tb,t15:nt15?t15/nt15:null}}
+// Erreurs pour 100 coups joués dans une tranche de temps de réflexion, et dans toutes les autres
+const tbRate=(A,i)=>A.tb.coups[i]?100*A.tb.err[i]/A.tb.coups[i]:null;
+const tbRest=(A,i)=>{const c=A.tb.coups.reduce((t,x,j)=>t+(j===i?0:x),0),e=A.tb.err.reduce((t,x,j)=>t+(j===i?0:x),0);return c?100*e/c:null};
+// Nombre de moments (erreurs, gaffes, mats manqués) par motif, dans les parties G
+function motifCounts(G){const ids=new Set(G.map(g=>g.i)),list=D.moments.filter(m=>ids.has(m.g)),c={};
+ list.forEach(m=>(m.mot||[]).forEach(k=>c[k]=(c[k]||0)+1));
+ return {n:list.length,none:list.filter(m=>!(m.mot||[]).length).length,ranked:Object.entries(c).sort((a,b)=>b[1]-a[1])}}
 
 const CAUSES={temps:'Gestion de la pendule',conversion:'Conversion des positions gagnantes',ouverture:'Sortie d\'ouverture',milieu:'Tactique en milieu de partie',finale:'Technique de finale',positionnel:'Jeu positionnel (pas de gaffe nette)'};
 function cause(g){if(g.resultat==='Victoire'||!g.sf)return null;const s=g.sf,d=s.decisive;
@@ -110,7 +128,7 @@ function renderSF(G,GA){const A=sfAgg(G);
   $('sfMissing').textContent=analysedCads.length?`Aucune partie analysée dans cette sélection. Cadences analysées : ${analysedCads.join(', ')}. Pour en ajouter : python chess_dashboard_generator.py --cadences ${[...new Set([...analysedCads,$('fCadence').value||'blitz'])].join(',')}`:'Aucune partie analysée par Stockfish. Lance : python chess_dashboard_generator.py';return}
  $('sfBlock').hidden=false;$('sfMissing').hidden=true;
  const k=[['Parties analysées',A.n,G.length>A.n?`sur ${G.length} (cadences analysées : ${analysedCads.join(', ')})`:'toutes celles de la sélection'],['Précision estimée',fmt(A.prec)+' %','méthode Lichess'],['Perte moyenne / coup',fmt(A.acpl,0)+' cp','ACPL, en centièmes de pion'],['Gaffes / partie',fmt(A.gaf/A.n,2),fmt(A.err/A.n,2)+' erreurs · '+fmt(A.imp/A.n,1)+' imprécisions'],
-  ['Erreurs en zeitnot',fmt(pct(A.zt,A.errs),0)+' %',A.zt+' erreurs et gaffes sur '+A.errs],['Occasions manquées',fmt(A.occ/A.n,2)+' / partie','grosse erreur adverse non punie'],['Mats manqués',A.mm,'mat en 3 coups ou moins non joué'],['Positions gagnantes gâchées',A.winning?fmt(pct(A.notConv,A.winning),0)+' %':'—',A.notConv+' sur '+A.winning+' parties où tu étais gagnant']];
+  ['Erreurs en zeitnot',fmt(pct(A.zt,A.errs),0)+' %',A.zt+' erreurs et gaffes sur '+A.errs],['Occasions manquées',fmt(A.occ/A.n,2)+' / partie','grosse erreur adverse non punie'],['Parties perdantes sauvées',A.losing?fmt(pct(A.saved,A.losing),0)+' %':'—',A.saved+' sur '+A.losing+' parties où tu étais perdant (nulle ou victoire)'],['Positions gagnantes gâchées',A.winning?fmt(pct(A.notConv,A.winning),0)+' %':'—',A.notConv+' sur '+A.winning+' parties où tu étais gagnant']];
  $('sfKpis').innerHTML=k.map(x=>`<div class="kpi"><div class="label">${x[0]}</div><div class="value">${x[1]}</div><div class="hint">${x[2]}</div></div>`).join('');
 
  const phs=['ouverture','milieu','finale'];const rate=(p,s)=>A.ph[p].coups?100*A.ph[p][s]/A.ph[p].coups:0;
@@ -122,6 +140,7 @@ function renderSF(G,GA){const A=sfAgg(G);
  chart('causeChart',{type:'bar',data:{labels:ranked.map(([c])=>CAUSES[c]),datasets:[{label:'Points perdus',data:ranked.map(([,v])=>v.pts),backgroundColor:'#e66767',borderRadius:4,maxBarThickness:28}]},
   options:barOpts({indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${fmt(c.raw,1)} points · ${ranked[c.dataIndex][1].games.length} parties · ${fmt(pct(c.raw,totalLost),0)} % des points perdus`}}},scales:{x:{beginAtZero:true}}})});
 
+ renderMotifs(G);renderTime(A);
  topCause=ranked[0]?.[0]||null;renderPriorities(A,ranked,totalLost,G);
 
  const cmp=analysedCads.map(c=>{const l=GA.filter(g=>g.cadence===c);const a=sfAgg(l);return a&&{c,s:score(a.a),a}}).filter(Boolean);
@@ -136,12 +155,23 @@ function renderSF(G,GA){const A=sfAgg(G);
  $('lostWins').innerHTML=lw.map(g=>{const d=g.sf.decisive&&momentOf(g.i,g.sf.decisive.ply);return `<tr><td>${esc(g.date)}</td><td><span class="pill">${esc(g.cadence)}</span></td><td>${esc(g.adversaire)} (${esc(g.elo_adversaire)})</td><td class="num">${g.sf.max_win} %</td><td class="${g.resultat==='Défaite'?'loss':'draw'}">${esc(g.resultat)}</td><td>${esc(FIN[g.fin]||g.fin)}</td>
   <td>${d?`<a href="${lichess(d.fen,g.couleur)}" target="_blank" rel="noopener">Erreur décisive</a> · `:''}<a href="${esc(g.lien)}" target="_blank" rel="noopener">Partie</a></td></tr>`}).join('')||'<tr><td colspan="7" class="empty">Aucune.</td></tr>'}
 
-function renderMoments(G){const ids=new Set(G.map(g=>g.i));const t=$('mType').value,p=$('mPhase').value;
- const list=D.moments.filter(m=>ids.has(m.g)&&(!p||m.ph===p)&&(t===''?m.sev!=='mat':t==='gaf'?m.sev==='gaf':t==='occ'?m.occ:t==='mm'?m.mm:m.zt&&m.sev!=='mat')).slice().reverse();
+function renderMotifs(G){const M=motifCounts(G);
+ $('motifSub').textContent=`Sur tes ${M.n} erreurs, gaffes et mats manqués. « Subi » : ce que la meilleure réponse adverse gagnait après ton coup ; « manqué » : ce que le meilleur coup gagnait. ${M.none} sans motif détecté (erreur positionnelle ou combinaison plus longue).`;
+ chart('motifChart',{type:'bar',data:{labels:M.ranked.map(([k])=>MOTIFS[k]),datasets:[{label:'Moments',data:M.ranked.map(([,v])=>pct(v,M.n)),backgroundColor:M.ranked.map(([k])=>/_subie?$/.test(k)?'#e66767':'#c98500'),borderRadius:4,maxBarThickness:28}]},
+  options:barOpts({indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${M.ranked[c.dataIndex][1]} moments · ${fmt(c.raw,0)} % de tes erreurs`}}},scales:{x:{beginAtZero:true,ticks:{callback:v=>v+' %'}}}})})}
+
+function renderTime(A){const total=A.tb.coups.reduce((t,x)=>t+x,0);
+ $('timeSub').textContent=total?`Temps passé sur le coup, en part du temps total d'une partie (temps initial + 40 incréments ; en 10 min : réflexe = moins de ${Math.round(600*T.tps[0])} s, longue réflexion = ${Math.round(600*T.tps[T.tps.length-1])} s et plus). `+(A.t15!=null?`Au ${T.t15}e coup, tu as utilisé en moyenne ${fmt(A.t15,0)} % de ton temps initial.`:'')
+  :'Pas de temps de pendule dans les parties analysées de cette sélection.';
+ chart('timeChart',{type:'bar',data:{labels:TIME_LABELS,datasets:[{label:'Erreurs et gaffes pour 100 coups',data:A.tb.coups.map((_,i)=>tbRate(A,i)),backgroundColor:'#d95926',borderRadius:4,maxBarThickness:56}]},
+  options:barOpts({plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${fmt(c.raw)} erreurs et gaffes pour 100 coups · ${A.tb.coups[c.dataIndex]} coups joués (${fmt(pct(A.tb.coups[c.dataIndex],total),0)} %)`}}},scales:{y:{beginAtZero:true,title:{display:true,text:'pour 100 coups'}}}})})}
+
+function renderMoments(G){const ids=new Set(G.map(g=>g.i));const t=$('mType').value,p=$('mPhase').value,mo=$('mMotif').value;
+ const list=D.moments.filter(m=>ids.has(m.g)&&(!p||m.ph===p)&&(!mo||(m.mot||[]).includes(mo))&&(t===''?m.sev!=='mat':t==='gaf'?m.sev==='gaf':t==='occ'?m.occ:t==='mm'?m.mm:m.zt&&m.sev!=='mat')).slice().reverse();
  $('mCount').textContent=list.length+' moments'+(list.length>400?' (400 plus récents affichés)':'');
  const sevl={gaf:'<span class="loss">Gaffe</span>',err:'<span class="draw">Erreur</span>',mat:'<span class="muted">Mat manqué</span>'};
- $('moments').innerHTML=list.slice(0,400).map(m=>{const g=D.games[m.g];return `<tr><td>${esc(g.date)}</td><td><span class="pill">${esc(g.cadence)}</span></td><td>${esc(m.n)}</td><td>${sevl[m.sev]} <b>${esc(m.san)}</b>${m.occ?' <span class="pill">occasion manquée</span>':''}${m.mm&&m.sev!=='mat'?' <span class="pill">mat manqué</span>':''}</td>
-  <td><b>${esc(m.best)}</b></td><td class="num">${m.wb} % → <span class="${m.wa<m.wb-T.gaf?'loss':''}">${m.wa} %</span></td><td>${PHASE[m.ph]}</td><td>${m.clk==null?'—':Math.floor(m.clk/60)+':'+String(m.clk%60).padStart(2,'0')}${m.zt?' <span class="pill">zeitnot</span>':''}</td>
+ $('moments').innerHTML=list.slice(0,400).map(m=>{const g=D.games[m.g];return `<tr><td>${esc(g.date)}</td><td><span class="pill">${esc(g.cadence)}</span></td><td>${esc(m.n)}</td><td>${sevl[m.sev]} <b>${esc(m.san)}</b>${m.occ?' <span class="pill">occasion manquée</span>':''}${m.mm&&m.sev!=='mat'?' <span class="pill">mat manqué</span>':''}${(m.mot||[]).filter(k=>k!=='mat_manque').map(k=>` <span class="pill">${MOTIFS[k].toLowerCase()}</span>`).join('')}</td>
+  <td><b>${esc(m.best)}</b></td><td class="num">${m.wb} % → <span class="${m.wa<m.wb-T.gaf?'loss':''}">${m.wa} %</span></td><td>${PHASE[m.ph]}</td><td>${m.clk==null?'—':Math.floor(m.clk/60)+':'+String(m.clk%60).padStart(2,'0')}${m.t!=null?` <span class="muted">(${m.t} s)</span>`:''}${m.zt?' <span class="pill">zeitnot</span>':''}</td>
   <td><a href="${lichess(m.fen,g.couleur)}" target="_blank" rel="noopener">Position</a> · <a href="${esc(g.lien)}" target="_blank" rel="noopener">Partie</a></td></tr>`}).join('')||'<tr><td colspan="9" class="empty">Aucun moment pour ces filtres.</td></tr>'}
 
 const ADVICE={
@@ -154,8 +184,11 @@ const ADVICE={
 function renderPriorities(A,ranked,totalLost,G){
  const cad=$('fCadence').value;$('prioSub').textContent=`Classées selon les points perdus dans les ${A.n} parties analysées${cad?' en '+cad:' (toutes cadences analysées confondues : filtre « Cadence » pour les séparer)'}. Seules les parties non gagnées comptent.`;
  const evidence=(c,v)=>{const ph=A.ph[c];const base=`${fmt(v.pts,1)} points perdus dans ${v.games.length} parties (${fmt(pct(v.pts,totalLost),0)} % du total).`;
-  if(ph)return base+` Dans cette phase, tu fais ${fmt(100*ph.gaf/ph.coups,1)} gaffes pour 100 coups.`+(c==='milieu'&&A.occ?` Tu as aussi laissé passer ${A.occ} grosses erreurs adverses sans les punir.`:'');
-  if(c==='temps')return base+` ${fmt(pct(A.zt,A.errs),0)} % de tes erreurs et gaffes sont commises en zeitnot, et ${A.timeouts} défaites sont des pertes au temps.`;
+  if(ph)return base+` Dans cette phase, tu fais ${fmt(100*ph.gaf/ph.coups,1)} gaffes pour 100 coups.`+(c==='milieu'&&A.occ?` Tu as aussi laissé passer ${A.occ} grosses erreurs adverses sans les punir.`:'')
+   +(c==='milieu'?(()=>{const M=motifCounts(G);return M.ranked.length?` Motif le plus fréquent : ${MOTIFS[M.ranked[0][0]].toLowerCase()} (${fmt(pct(M.ranked[0][1],M.n),0)} % de tes erreurs).`:''})():'');
+  if(c==='temps')return base+` ${fmt(pct(A.zt,A.errs),0)} % de tes erreurs et gaffes sont commises en zeitnot, et ${A.timeouts} défaites sont des pertes au temps.`
+   +(tbRate(A,0)!=null&&tbRest(A,0)?` Coups joués en réflexe : ${fmt(tbRate(A,0),1)} erreurs pour 100 coups, contre ${fmt(tbRest(A,0),1)} pour les autres.`:'')
+   +(A.t15!=null?` Au ${T.t15}e coup, tu as déjà utilisé ${fmt(A.t15,0)} % de ton temps initial en moyenne.`:'');
   if(c==='conversion')return base+` Tu as été gagnant dans ${A.winning} parties et n'en as pas gagné ${A.notConv}.`;
   return base};
  const worstOpenings=c=>c!=='ouverture'?'':(()=>{const r=openingRows(G,'variante',5).filter(r=>r.ev!=null&&r.na>=3).sort((a,b)=>a.ev-b.ev).slice(0,3);return r.length?`<p>Lignes les plus difficiles : ${r.map(x=>`${esc(x.name)} (${x.col}, ${(x.ev>0?'+':'')+fmt(x.ev,2)})`).join(' ; ')}.</p>`:''})();
@@ -174,7 +207,11 @@ function renderInsights(G,GA){const out=[];
  const op=openingRows(G,'famille',10).sort((a,b)=>b.s-a.s);if(op.length>1){const b=op[0],w=op[op.length-1];out.push(`Ouverture la plus rentable (≥ 10 parties) : <b>${esc(b.name)}</b> avec les ${b.col} (${fmt(b.s)} %). La moins rentable : <b>${esc(w.name)}</b> avec les ${w.col} (${fmt(w.s)} %, ${vnd(w)}).`)}
  const A=sfAgg(G);if(A){const phs=['ouverture','milieu','finale'].filter(p=>A.ph[p].coups>=50).map(p=>({p,r:100*A.ph[p].gaf/A.ph[p].coups})).sort((a,b)=>b.r-a.r);
   if(phs.length)out.push(`Stockfish : ${fmt(A.gaf/A.n,2)} gaffe par partie en moyenne ; c'est en <b>${PHASE[phs[0].p].toLowerCase()}</b> que tu gaffes le plus (${fmt(phs[0].r,1)} pour 100 coups).`);
-  if(A.winning)out.push(`Tu as obtenu une position gagnante dans ${A.winning} parties analysées et n'en as pas gagné <b>${A.notConv}</b> (${fmt(pct(A.notConv,A.winning),0)} %).`)}
+  if(A.winning)out.push(`Tu as obtenu une position gagnante dans ${A.winning} parties analysées et n'en as pas gagné <b>${A.notConv}</b> (${fmt(pct(A.notConv,A.winning),0)} %).`);
+  if(A.losing>=5)out.push(`Tu as été perdant (moins de ${100-T.win} % de chances de gain) dans ${A.losing} parties analysées et en as sauvé <b>${A.saved}</b> (${fmt(pct(A.saved,A.losing),0)} %) par une nulle ou une victoire.`);
+  const fast=tbRate(A,0),rest=tbRest(A,0);
+  if(A.tb.coups[0]>=50&&fast!=null&&rest&&fast>=1.5*rest)out.push(`Tes coups joués en réflexe sont <b>${fmt(fast/rest,1)} fois</b> plus souvent des erreurs que les autres (${fmt(fast,1)} contre ${fmt(rest,1)} pour 100 coups) : prends quelques secondes pour vérifier les menaces avant de jouer.`);
+  const M=motifCounts(G);if(M.ranked.length&&M.n>=20)out.push(`Motif tactique le plus fréquent dans tes erreurs : <b>${MOTIFS[M.ranked[0][0]].toLowerCase()}</b> (${fmt(pct(M.ranked[0][1],M.n),0)} % des ${M.n} erreurs).`)}
  $('insights').innerHTML=out.map(x=>`<li>${x}</li>`).join('')||'<li class="muted">Pas assez de parties dans la sélection.</li>'}
 
 /* ---------- historique ---------- */

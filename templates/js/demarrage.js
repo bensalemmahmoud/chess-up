@@ -1,6 +1,6 @@
 ['fCadence','fPeriod','fRated'].forEach(id=>$(id).addEventListener('change',render));
 ['oGroup','oMin'].forEach(id=>$(id).addEventListener('change',()=>renderOpenings(baseFilter(false))));
-['mType','mPhase'].forEach(id=>$(id).addEventListener('change',()=>renderMoments(baseFilter(false))));
+['mType','mPhase','mMotif'].forEach(id=>$(id).addEventListener('change',()=>renderMoments(baseFilter(false))));
 $('search').addEventListener('input',()=>renderGames(baseFilter(false)));$('resultFilter').addEventListener('change',()=>renderGames(baseFilter(false)));
 $('csvBtn').onclick=()=>{const keys=['date','cadence','couleur','resultat','fin','elo_joueur','adversaire','elo_adversaire','precision_joueur_%','ouverture','famille','variante','ECO','lien'];
  const rows=baseFilter(false);const csv=[[...keys,'precision_stockfish_%','acpl','gaffes'].join(';'),...rows.map(r=>[...keys.map(k=>r[k]),r.sf?.prec??'',r.sf?.acpl??'',r.sf?r.sf.phases.ouverture.gaf+r.sf.phases.milieu.gaf+r.sf.phases.finale.gaf:''].map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(';'))].join('\r\n');

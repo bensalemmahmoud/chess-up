@@ -20,6 +20,11 @@ INACCURACY, MISTAKE, BLUNDER = 10, 20, 30
 WINNING = 80            # au-dessus : position considérée comme gagnante (≈ +4)
 ALTERNATIVES = 3        # coups candidats calculés aux positions d'erreur, pour accepter d'autres bons coups à l'entraînement
 OPENING_PLIES = 20      # demi-coups couverts par le répertoire d'ouvertures
+# Temps de réflexion d'un coup, en part du temps total d'une partie (temps initial + 40 incréments) :
+# moins de 1 % (réflexe), 1 à 3 %, 3 à 8 %, 8 % et plus (longue réflexion)
+TIME_BUCKETS = (0.01, 0.03, 0.08)
+TIME_CHECK_MOVE = 15    # temps consommé mesuré après ce coup du joueur
+VALUE = {chess.PAWN: 1, chess.KNIGHT: 3, chess.BISHOP: 3, chess.ROOK: 5, chess.QUEEN: 9, chess.KING: 0}
 
 
 STOCKFISH_DIR = Path(__file__).resolve().parent / "stockfish"
@@ -222,6 +227,76 @@ def base_seconds(time_control):
     return int(m.group(1)) if m else None   # None pour les parties par correspondance (« 1/86400 »)
 
 
+def increment_seconds(time_control):
+    m = re.match(r"^\d+\+(\d+)$", str(time_control or ""))
+    return int(m.group(1)) if m else 0
+
+
+# ---------------------------------------------------------------- motifs tactiques
+# Détection volontairement simple (un coup, sans la suite de la variante) : la position, le coup et le cache suffisent.
+
+def wins_material(board, move):
+    """Le coup prend une pièce non défendue, ou une pièce plus précieuse que celle qui prend."""
+    if not board.is_capture(move):
+        return False
+    if board.is_en_passant(move):
+        return False
+    victim, attacker = board.piece_at(move.to_square), board.piece_at(move.from_square)
+    return VALUE[victim.piece_type] > VALUE[attacker.piece_type] or not board.attackers(victim.color, move.to_square)
+
+
+def is_fork(board, move):
+    """Après le coup, la pièce jouée attaque au moins deux cibles (le roi, une pièce plus précieuse qu'elle
+    ou une pièce non défendue) sans pouvoir être prise gratuitement ou par une pièce de moindre valeur."""
+    piece = board.piece_at(move.from_square)
+    after = board.copy(stack=False)
+    after.push(move)
+    me, to = piece.color, move.to_square
+    takers = after.attackers(not me, to)
+    if takers and (not after.attackers(me, to) or min(VALUE[after.piece_type_at(s)] or 99 for s in takers) < VALUE[piece.piece_type]):
+        return False
+    targets = 0
+    for sq in after.attacks(to):
+        t = after.piece_at(sq)
+        if t and t.color != me and (t.piece_type == chess.KING or VALUE[t.piece_type] > VALUE[piece.piece_type]
+                                    or (t.piece_type != chess.PAWN and not after.attackers(t.color, sq))):
+            targets += 1
+    return targets >= 2
+
+
+def pins(board, move):
+    """Après le coup, une pièce adverse (hors pion) est clouée sur son roi alors qu'elle ne l'était pas."""
+    opp = not board.turn
+    before = {sq for sq in chess.SquareSet(board.occupied_co[opp]) if board.is_pinned(opp, sq)}
+    after = board.copy(stack=False)
+    after.push(move)
+    return any(sq not in before and after.piece_type_at(sq) not in (chess.PAWN, chess.KING) and after.is_pinned(opp, sq)
+               for sq in chess.SquareSet(after.occupied_co[opp]))
+
+
+def motifs(board, move, best_uci, reply_uci, before, after):
+    """Motifs d'une erreur du joueur au trait : ce que le meilleur coup gagnait (« _manque ») et ce que la meilleure
+    réponse adverse après le coup joué gagne (« _subi »). Évaluations du point de vue du joueur."""
+    out = []
+    if before >= MATE - 3 and after < MATE - 50:
+        out.append("mat_manque")
+    best = chess.Move.from_uci(best_uci) if best_uci else None
+    if best and best in board.legal_moves:
+        if wins_material(board, best): out.append("materiel_manque")
+        if is_fork(board, best): out.append("fourchette_manquee")
+        if pins(board, best): out.append("clouage_manque")
+    played = board.copy(stack=False)
+    played.push(move)
+    if after <= -(MATE - 5):
+        out.append("mat_subi")
+    reply = chess.Move.from_uci(reply_uci) if reply_uci else None
+    if reply and reply in played.legal_moves:
+        if wins_material(played, reply): out.append("materiel_subi")
+        if is_fork(played, reply): out.append("fourchette_subie")
+        if pins(played, reply): out.append("clouage_subi")
+    return out
+
+
 def game_metrics(row, pgn, analysis):
     """Renvoie (métriques de la partie, liste des moments critiques) du point de vue du joueur."""
     game = chess.pgn.read_game(io.StringIO(pgn))
@@ -229,14 +304,18 @@ def game_metrics(row, pgn, analysis):
     sign = 1 if me == chess.WHITE else -1
     evals = [sign * e for e in analysis["e"]]
     best = analysis["b"]
-    base = base_seconds(row["time_control"])
+    base, inc = base_seconds(row["time_control"]), increment_seconds(row["time_control"])
     zeitnot_limit = max(15, base * 0.10) if base else None
+    budget = base + 40 * inc if base else None
 
     phases = ("ouverture", "milieu", "finale")
     stats = {p: {"coups": 0, "imp": 0, "err": 0, "gaf": 0} for p in phases}
+    # coups joués et erreurs (erreurs + gaffes) selon le temps de réflexion (TIME_BUCKETS)
+    times = {"coups": [0] * (len(TIME_BUCKETS) + 1), "err": [0] * (len(TIME_BUCKETS) + 1)}
     cpl, accs, moments = [], [], []
-    zeit_err = missed_opp = missed_mate = 0
-    decisive = None
+    zeit_err = missed_opp = missed_mate = own_moves = 0
+    decisive = time_used = None
+    prev_clock = base
     board = game.board()
     nodes = list(game.mainline())
     for ply, node in enumerate(nodes):
@@ -252,12 +331,24 @@ def game_metrics(row, pgn, analysis):
             accs.append(move_accuracy(loss))
             clock = node.clock()
             zeit = bool(zeitnot_limit and clock is not None and clock < zeitnot_limit)
+            own_moves += 1
+            spent = None
+            if budget and clock is not None and prev_clock is not None:
+                spent = max(0.0, prev_clock - clock + inc)
+                if own_moves == TIME_CHECK_MOVE:
+                    time_used = round(100 * max(0.0, min(1.0, 1 - clock / base)))
+            prev_clock = clock
             # occasion manquée : l'adversaire vient de faire une grosse erreur et on ne la punit pas
             opp_gift = ply > 0 and wb - win_pct(evals[ply - 1]) >= MISTAKE
             mate_missed = before >= MATE - 3 and after < MATE - 50
             sev = "gaf" if loss >= BLUNDER else "err" if loss >= MISTAKE else "imp" if loss >= INACCURACY else ""
             if sev:
                 s[sev] += 1
+            bucket = None
+            if spent is not None:
+                bucket = sum(spent >= budget * t for t in TIME_BUCKETS)
+                times["coups"][bucket] += 1
+                times["err"][bucket] += sev in ("err", "gaf")
             if sev in ("err", "gaf"):
                 zeit_err += zeit
                 missed_opp += opp_gift
@@ -279,6 +370,8 @@ def game_metrics(row, pgn, analysis):
                     "wb": round(wb), "wa": round(wa), "ph": ph, "zt": zeit,
                     "sev": sev or "mat", "occ": bool(opp_gift and sev), "mm": mate_missed,
                     "clk": round(clock) if clock is not None else None, "alts": alts,
+                    "t": None if spent is None else round(spent), "tb": bucket,
+                    "mot": motifs(board, move, best[ply], best[ply + 1] if ply + 1 < len(best) else "", before, after),
                 })
             if loss >= MISTAKE and (decisive is None or loss > decisive["loss"]):
                 decisive = {"loss": round(loss), "ph": ph, "zt": zeit, "ply": ply}
@@ -293,6 +386,9 @@ def game_metrics(row, pgn, analysis):
         "prec": round(sum(accs) / len(accs), 1) if accs else None,
         "zt_err": zeit_err, "occ": missed_opp, "mm": missed_mate,
         "max_win": round(max(my_wins)) if my_wins else None,
+        "min_win": round(min(my_wins)) if my_wins else None,
+        "tps": times if budget and sum(times["coups"]) else None,
+        "t15": time_used,
         "eval_ouv": None if opening_eval is None else round(max(-1000, min(1000, opening_eval))),
         "decisive": decisive,
     }

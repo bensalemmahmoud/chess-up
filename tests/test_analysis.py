@@ -84,6 +84,56 @@ class GameMetrics(unittest.TestCase):
         self.assertEqual(moments[0]["alts"], [])
 
 
+    def test_motif_of_the_blunder(self):
+        _, moments = ca.game_metrics(row("Noirs"), SCHOLAR_PGN, SCHOLAR_ANALYSIS)
+        self.assertEqual(moments[0]["mot"], ["mat_subi"])   # Nf6 permet Qxf7#
+
+    def test_defence_uses_the_lowest_chances(self):
+        # 12 demi-coups : seules les positions à partir du 10e comptent (0, puis -200 pour les Noirs)
+        pgn = "1. Nf3 Nf6 2. Ng1 Ng8 3. Nf3 Nf6 4. Ng1 Ng8 5. Nf3 Nf6 6. Ng1 Ng8"
+        analysis = {"v": ca.CACHE_VERSION, "d": 14, "e": [0] * 11 + [200, 0], "b": [""] * 13}
+        metrics, _ = ca.game_metrics(row("Noirs"), pgn, analysis)
+        self.assertEqual(metrics["min_win"], round(ca.win_pct(-200)))
+        self.assertEqual(metrics["max_win"], 50)
+
+    def test_thinking_time_per_move(self):
+        # Les Noirs jouent e5 en 2 s, Nc6 en 28 s et la gaffe Nf6 en 90 s (partie de 10 min).
+        pgn = ("1. e4 {[%clk 0:10:00]} e5 {[%clk 0:09:58]} 2. Qh5 {[%clk 0:09:55]} Nc6 {[%clk 0:09:30]} "
+               "3. Bc4 {[%clk 0:09:50]} Nf6 {[%clk 0:08:00]} 4. Qxf7# {[%clk 0:09:45]} 1-0")
+        metrics, moments = ca.game_metrics(row("Noirs"), pgn, SCHOLAR_ANALYSIS)
+        self.assertEqual(metrics["tps"], {"coups": [1, 0, 1, 1], "err": [0, 0, 0, 1]})
+        self.assertEqual(moments[0]["t"], 90)
+        self.assertIsNone(metrics["t15"])   # partie trop courte
+
+    def test_no_thinking_time_without_clocks(self):
+        metrics, moments = ca.game_metrics(row("Noirs"), SCHOLAR_PGN, SCHOLAR_ANALYSIS)
+        self.assertIsNone(metrics["tps"])
+        self.assertIsNone(moments[0]["t"])
+
+
+class Motifs(unittest.TestCase):
+    def test_fork(self):
+        board = chess.Board("r3k3/8/8/1N6/8/8/8/4K3 w - - 0 1")
+        self.assertTrue(ca.is_fork(board, chess.Move.from_uci("b5c7")))    # roi et tour
+        self.assertFalse(ca.is_fork(board, chess.Move.from_uci("b5d6")))   # le roi seul
+
+    def test_fork_on_a_square_taken_for_free_does_not_count(self):
+        board = chess.Board("r3k3/8/1q6/1N6/8/8/8/4K3 w - - 0 1")   # la dame b6 prend le cavalier en c7
+        self.assertFalse(ca.is_fork(board, chess.Move.from_uci("b5c7")))
+        board = chess.Board("r3k3/8/1q6/1N6/8/8/8/2R1K3 w - - 0 1")   # ... mais pas s'il est défendu par la tour c1
+        self.assertTrue(ca.is_fork(board, chess.Move.from_uci("b5c7")))
+
+    def test_material(self):
+        self.assertTrue(ca.wins_material(chess.Board("4k3/8/8/3q4/8/8/3R4/4K3 w - - 0 1"), chess.Move.from_uci("d2d5")))
+        self.assertFalse(ca.wins_material(chess.Board("4k3/4p3/3p4/8/8/8/3R4/4K3 w - - 0 1"), chess.Move.from_uci("d2d6")))
+        self.assertTrue(ca.wins_material(chess.Board("4k3/8/3p4/8/8/8/3R4/4K3 w - - 0 1"), chess.Move.from_uci("d2d6")))
+
+    def test_pin(self):
+        board = chess.Board("4k3/3n4/8/8/8/8/8/4KB2 w - - 0 1")
+        self.assertTrue(ca.pins(board, chess.Move.from_uci("f1b5")))
+        self.assertFalse(ca.pins(board, chess.Move.from_uci("f1c4")))
+
+
 class OpeningPositions(unittest.TestCase):
     def test_only_the_players_turns(self):
         positions = ca.opening_positions(row("Noirs"), SCHOLAR_PGN, SCHOLAR_ANALYSIS)

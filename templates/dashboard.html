@@ -105,11 +105,14 @@ main{padding:14px 16px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.char
 <div class="charts">
 <section class="panel"><h2>Erreurs par phase de jeu</h2><p class="sub">Pour 100 de tes coups joués dans chaque phase.</p><div class="chartbox"><canvas id="phaseChart"></canvas></div></section>
 <section class="panel"><h2>Comment tes parties non gagnées ont basculé</h2><p class="sub">Points perdus (défaite = 1, nulle = ½), selon la cause principale.</p><div class="chartbox"><canvas id="causeChart"></canvas></div></section>
+<section class="panel"><h2>Motifs tactiques de tes erreurs</h2><p class="sub" id="motifSub"></p><div class="chartbox"><canvas id="motifChart"></canvas></div></section>
+<section class="panel"><h2>Erreurs selon le temps de réflexion</h2><p class="sub" id="timeSub"></p><div class="chartbox"><canvas id="timeChart"></canvas></div></section>
 </div>
 <section class="panel" style="margin-top:14px"><h2>Rapid contre blitz : les erreurs ne se ressemblent pas</h2><p class="sub">Toutes les cadences analysées, autres filtres appliqués.</p><div class="tablewrap"><table id="cmpTable"></table></div></section>
 <section class="panel" style="margin-top:14px"><h2>Moments critiques</h2><p class="sub">Tes erreurs et gaffes, avec le meilleur coup de Stockfish. « Position » ouvre l'échiquier d'analyse Lichess sur la position, avant ton coup.</p>
 <div class="filters"><select id="mType"><option value="">Erreurs et gaffes</option><option value="gaf">Gaffes seulement</option><option value="occ">Occasions manquées</option><option value="mm">Mats manqués</option><option value="zt">En zeitnot</option></select>
-<select id="mPhase"><option value="">Toutes les phases</option><option value="ouverture">Ouverture</option><option value="milieu">Milieu de partie</option><option value="finale">Finale</option></select><span class="muted" id="mCount"></span></div>
+<select id="mPhase"><option value="">Toutes les phases</option><option value="ouverture">Ouverture</option><option value="milieu">Milieu de partie</option><option value="finale">Finale</option></select>
+<select id="mMotif"><option value="">Tous les motifs</option></select><span class="muted" id="mCount"></span></div>
 <div class="tablewrap"><table><thead><tr><th>Date</th><th>Cadence</th><th>Coup</th><th>Joué</th><th>Meilleur</th><th>Chances de gain</th><th>Phase</th><th>Pendule</th><th></th></tr></thead><tbody id="moments"></tbody></table></div></section>
 <section class="panel" style="margin-top:14px"><h2>Positions gagnantes non converties</h2><p class="sub" id="lostSub"></p>
 <div class="tablewrap"><table><thead><tr><th>Date</th><th>Cadence</th><th>Adversaire</th><th class="num">Chances max.</th><th>Résultat</th><th>Fin</th><th></th></tr></thead><tbody id="lostWins"></tbody></table></div></section>

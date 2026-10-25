@@ -4,7 +4,7 @@ Ce script récupère tes parties publiques sur Chess.com ou Lichess, les fait an
 
 - **tes résultats** : score par cadence, Blancs contre Noirs, score selon l'écart d'Elo, évolution de l'Elo ;
 - **tes ouvertures** : score, et évaluation Stockfish de la position après 12 coups ;
-- **l'analyse Stockfish** : gaffes, erreurs et imprécisions par phase de jeu, erreurs en zeitnot, occasions manquées, positions gagnantes non converties ;
+- **l'analyse Stockfish** : gaffes, erreurs et imprécisions par phase de jeu, motifs tactiques de tes erreurs (fourchettes, clouages, matériel en prise, mats), erreurs selon le temps de réflexion, erreurs en zeitnot, occasions manquées, positions gagnantes non converties, positions perdantes sauvées ;
 - **tes 3 priorités d'entraînement**, classées selon les points qu'elles te coûtent, avec des exemples tirés de tes parties ;
 - **les moments critiques** : chaque erreur avec le meilleur coup, et un lien qui ouvre la position sur l'échiquier d'analyse Lichess.
 
@@ -68,7 +68,9 @@ Les analyses sont gardées dans `cache/`. **Les exécutions suivantes n'analysen
 - **Phases** : l'ouverture couvre les 12 premiers coups. La finale commence quand il reste peu de pièces : 26 points de matériel ou moins, pions exclus (dame = 9, tour = 5, fou et cavalier = 3). Le milieu de partie est entre les deux.
 - **Zeitnot** : coup joué avec moins de 10 % du temps initial à la pendule (et au minimum 15 secondes).
 - **Occasion manquée** : l'adversaire vient de faire une grosse erreur, et ton coup ne la punit pas.
-- **Position gagnante** : au moins 80 % de chances de gain, soit environ +4.
+- **Position gagnante** : au moins 80 % de chances de gain, soit environ +4. **Position perdante** : 20 % ou moins ; elle est « sauvée » si la partie finit par une nulle ou une victoire.
+- **Motifs tactiques** : pour chaque erreur, ce que le meilleur coup gagnait (« manqué ») et ce que la meilleure réponse adverse gagne après ton coup (« subi ») : matériel (prise d'une pièce non défendue ou plus précieuse), fourchette (une pièce attaque deux cibles), clouage sur le roi, mat. La détection ne regarde qu'un coup : une combinaison plus longue apparaît « sans motif ».
+- **Temps de réflexion** : temps passé sur le coup, rapporté au temps total d'une partie (temps initial + 40 incréments). En 10 min : « réflexe » = moins de 6 s, « longue réflexion » = 48 s et plus.
 - **Priorités** : chaque partie non gagnée est attribuée à une cause principale (pendule, conversion d'une position gagnante, phase de la plus grosse erreur, ou jeu positionnel s'il n'y a pas d'erreur nette). Les causes sont classées selon les points perdus : 1 par défaite, ½ par nulle.
 
 Ce sont des indicateurs statistiques. Ils montrent où regarder ; ils ne remplacent pas l'analyse de tes parties.
