@@ -111,6 +111,29 @@ class GameMetrics(unittest.TestCase):
         self.assertIsNone(moments[0]["t"])
 
 
+    def test_accuracy_per_phase(self):
+        metrics, _ = ca.game_metrics(row("Noirs"), SCHOLAR_PGN, SCHOLAR_ANALYSIS)
+        ouv = metrics["phases"]["ouverture"]
+        self.assertEqual(ouv["coups"], 3)
+        self.assertLess(ouv["acc"] / ouv["coups"], 70)    # la gaffe Nf6 fait chuter la moyenne
+        self.assertGreater(ouv["acc"], 2 * 99)            # e5 et Nc6 sont parfaits
+
+    def test_first_endgame_reached(self):
+        pgn = '[FEN "4k3/8/8/8/8/8/4P3/R3K3 w - - 0 40"]\n\n40. Ra8+ Kd7 41. Ra7+ *'
+        analysis = {"v": ca.CACHE_VERSION, "d": 14, "e": [300, 310, 320, 330], "b": ["a1a8", "e8d7", "a8a7", ""]}
+        metrics, _ = ca.game_metrics(row("Blancs"), pgn, analysis)
+        self.assertEqual(metrics["finale"], {"type": "tours", "w": round(ca.win_pct(300))})
+
+
+class EndgameTypes(unittest.TestCase):
+    def test_types(self):
+        self.assertEqual(ca.endgame_type(chess.Board("4k3/p7/8/8/8/8/P7/4K3 w - - 0 1")), "pions")
+        self.assertEqual(ca.endgame_type(chess.Board("r3k3/8/8/8/8/8/8/R3K3 w - - 0 1")), "tours")
+        self.assertEqual(ca.endgame_type(chess.Board("2b1k3/8/8/8/8/8/8/1N2K3 w - - 0 1")), "mineures")
+        self.assertEqual(ca.endgame_type(chess.Board("2b1k3/8/8/8/8/8/8/R3K3 w - - 0 1")), "tours_mineures")
+        self.assertEqual(ca.endgame_type(chess.Board("3qk3/8/8/8/8/8/8/R3K3 w - - 0 1")), "dames_pieces")
+
+
 class Motifs(unittest.TestCase):
     def test_fork(self):
         board = chess.Board("r3k3/8/8/1N6/8/8/8/4K3 w - - 0 1")

@@ -4,7 +4,8 @@ Ce script récupère tes parties publiques sur Chess.com ou Lichess, les fait an
 
 - **tes résultats** : score par cadence, Blancs contre Noirs, score selon l'écart d'Elo, évolution de l'Elo ;
 - **tes ouvertures** : score, et évaluation Stockfish de la position après 12 coups ;
-- **l'analyse Stockfish** : gaffes, erreurs et imprécisions par phase de jeu, motifs tactiques de tes erreurs (fourchettes, clouages, matériel en prise, mats), erreurs selon le temps de réflexion, erreurs en zeitnot, occasions manquées, positions gagnantes non converties, positions perdantes sauvées ;
+- **ton comportement** : score après une victoire ou une défaite, au fil d'une session, selon l'heure de jeu ;
+- **l'analyse Stockfish** : gaffes, erreurs, imprécisions et précision par phase de jeu, résultats par type de finale, motifs tactiques de tes erreurs (fourchettes, clouages, matériel en prise, mats), erreurs selon le temps de réflexion, erreurs en zeitnot, occasions manquées, positions gagnantes non converties, positions perdantes sauvées ;
 - **tes 3 priorités d'entraînement**, classées selon les points qu'elles te coûtent, avec des exemples tirés de tes parties ;
 - **les moments critiques** : chaque erreur avec le meilleur coup, et un lien qui ouvre la position sur l'échiquier d'analyse Lichess.
 
@@ -70,6 +71,9 @@ Les analyses sont gardées dans `cache/`. **Les exécutions suivantes n'analysen
 - **Occasion manquée** : l'adversaire vient de faire une grosse erreur, et ton coup ne la punit pas.
 - **Position gagnante** : au moins 80 % de chances de gain, soit environ +4. **Position perdante** : 20 % ou moins ; elle est « sauvée » si la partie finit par une nulle ou une victoire.
 - **Motifs tactiques** : pour chaque erreur, ce que le meilleur coup gagnait (« manqué ») et ce que la meilleure réponse adverse gagne après ton coup (« subi ») : matériel (prise d'une pièce non défendue ou plus précieuse), fourchette (une pièce attaque deux cibles), clouage sur le roi, mat. La détection ne regarde qu'un coup : une combinaison plus longue apparaît « sans motif ».
+- **Type de finale** : selon les pièces restantes à l'entrée en finale (rois et pions exclus). Le score « attendu » est celui que donneraient exactement tes chances de gain à ce moment-là.
+- **Session** : parties enchaînées à moins d'une heure d'intervalle.
+- **Marge du hasard** : un écart est signalé comme net seulement s'il dépasse deux écarts-types (pour l'objectif +200 Elo, estimés en rééchantillonnant les parties). En dessous, avec ce nombre de parties, il pourrait n'être que de la chance.
 - **Temps de réflexion** : temps passé sur le coup, rapporté au temps total d'une partie (temps initial + 40 incréments). En 10 min : « réflexe » = moins de 6 s, « longue réflexion » = 48 s et plus.
 - **Priorités** : chaque partie non gagnée est attribuée à une cause principale (pendule, conversion d'une position gagnante, phase de la plus grosse erreur, ou jeu positionnel s'il n'y a pas d'erreur nette). Les causes sont classées selon les points perdus : 1 par défaite, ½ par nulle.
 

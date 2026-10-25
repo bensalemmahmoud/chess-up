@@ -109,6 +109,7 @@ class LichessRow(unittest.TestCase):
         self.assertEqual((r["time_control"], r["fin"], r["cadence"]), ("600+5", "resigned", "rapid"))
         self.assertEqual((r["famille"], r["variante"]), ("Caro-Kann Defense", "Caro-Kann Defense: Advance Variation"))
         self.assertEqual(r["lien"], "https://lichess.org/abcd1234")
+        self.assertEqual(r["ts"], 1790000600)   # fin de la partie, en secondes
 
     def test_loss_for_the_other_side(self):
         gen.USERNAME = "alice"

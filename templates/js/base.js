@@ -6,6 +6,7 @@ const pct=(a,b)=>b?100*a/b:null;
 const CAD_COLORS={rapid:'#3987e5',blitz:'#d95926',daily:'#199e70',bullet:'#c98500',classical:'#8a63d2',correspondence:'#199e70',ultraBullet:'#e66767'};
 const FIN={cheat:'triche',resigned:'abandon',checkmated:'mat',timeout:'temps',abandoned:'déconnexion',agreed:'nulle acceptée',repetition:'répétition',stalemate:'pat',insufficient:'matériel insuffisant',timevsinsufficient:'temps / matériel insuff.','50move':'règle des 50 coups'};
 const PHASE={ouverture:'Ouverture',milieu:'Milieu de partie',finale:'Finale'};
+const FINALES={pions:'Finales de pions',tours:'Finales de tours',mineures:'Finales de pièces mineures',tours_mineures:'Tours et pièces mineures',dames:'Finales de dames',dames_pieces:'Dames et autres pièces'};
 // « subi » : ce que la meilleure réponse adverse gagnait après ton coup ; « manqué » : ce que le meilleur coup gagnait
 const MOTIFS={materiel_subi:'Matériel laissé en prise',fourchette_subie:'Fourchette subie',clouage_subi:'Clouage subi',mat_subi:'Mat permis',
  materiel_manque:'Gain de matériel manqué',fourchette_manquee:'Fourchette manquée',clouage_manque:'Clouage manqué',mat_manque:'Mat manqué'};
@@ -33,11 +34,16 @@ function baseFilter(ignoreCadence){const c=$('fCadence').value,p=+$('fPeriod').v
 function score(list){const w=list.filter(g=>g.resultat==='Victoire').length,d=list.filter(g=>g.resultat==='Nulle').length,l=list.filter(g=>g.resultat==='Défaite').length;
  return {n:list.length,w,d,l,s:list.length?100*(w+.5*d)/list.length:null}}
 const vnd=s=>`${s.w}-${s.d}-${s.l}`;
+// Marge du hasard : un score (sur n parties) s'écarte nettement d'une référence p (0 à 1) s'il en sort de plus de 2 écarts-types.
+// Renvoie 1 (nettement au-dessus), -1 (nettement en dessous) ou 0.
+function scoreGap(s,p){if(!s.n||p==null)return 0;const se=100*Math.sqrt(Math.max(p*(1-p),.01)/s.n),d=s.s-100*p;return Math.abs(d)>2*se?Math.sign(d):0}
+const scoresDiffer=(a,b)=>{const pa=a.s/100,pb=b.s/100;return Math.abs(a.s-b.s)>200*Math.sqrt(Math.max(pa*(1-pa),.01)/a.n+Math.max(pb*(1-pb),.01)/b.n)};
+const HASARD=' <span class="muted">(écart dans la marge du hasard)</span>';
 const gap=g=>(+g.elo_adversaire||0)-(+g.elo_joueur||0);
 
 /* ---------- agrégats Stockfish ---------- */
 function sfAgg(list){const a=list.filter(g=>g.sf);const n=a.length;if(!n)return null;
- const ph={ouverture:{coups:0,imp:0,err:0,gaf:0},milieu:{coups:0,imp:0,err:0,gaf:0},finale:{coups:0,imp:0,err:0,gaf:0}};
+ const ph={ouverture:{coups:0,imp:0,err:0,gaf:0,acc:0},milieu:{coups:0,imp:0,err:0,gaf:0,acc:0},finale:{coups:0,imp:0,err:0,gaf:0,acc:0}};
  let errs=0,zt=0,occ=0,mm=0,prec=0,acpl=0,np=0,winning=0,notConv=0,timeouts=0,losing=0,saved=0,t15=0,nt15=0;
  const tb={coups:T.tps.map(()=>0).concat(0),err:T.tps.map(()=>0).concat(0)};
  a.forEach(g=>{for(const p in ph)for(const k in ph[p])ph[p][k]+=g.sf.phases[p][k];
@@ -51,6 +57,7 @@ function sfAgg(list){const a=list.filter(g=>g.sf);const n=a.length;if(!n)return 
  const tot=k=>ph.ouverture[k]+ph.milieu[k]+ph.finale[k];
  return {n,a,ph,gaf:tot('gaf'),err:tot('err'),imp:tot('imp'),coups:tot('coups'),errs,zt,occ,mm,prec:np?prec/np:null,acpl:np?acpl/np:null,winning,notConv,timeouts,losing,saved,tb,t15:nt15?t15/nt15:null}}
 // Erreurs pour 100 coups joués dans une tranche de temps de réflexion, et dans toutes les autres
+const phAcc=(A,p)=>A.ph[p].coups?A.ph[p].acc/A.ph[p].coups:null;   // précision moyenne des coups d'une phase
 const tbRate=(A,i)=>A.tb.coups[i]?100*A.tb.err[i]/A.tb.coups[i]:null;
 const tbRest=(A,i)=>{const c=A.tb.coups.reduce((t,x,j)=>t+(j===i?0:x),0),e=A.tb.err.reduce((t,x,j)=>t+(j===i?0:x),0);return c?100*e/c:null};
 // Nombre de moments (erreurs, gaffes, mats manqués) par motif, dans les parties G
@@ -103,7 +110,7 @@ function render(){const G=baseFilter(false),GA=baseFilter(true);const sc=score(G
  const months=[...new Set(G.map(g=>g.mois))].sort();const bm=months.map(m=>score(G.filter(g=>g.mois===m)));
  chart('monthlyChart',{type:'bar',data:{labels:months,datasets:[{label:'Victoires',data:bm.map(x=>x.w),backgroundColor:'#199e70',borderRadius:4},{label:'Nulles',data:bm.map(x=>x.d),backgroundColor:'#c98500',borderRadius:4},{label:'Défaites',data:bm.map(x=>x.l),backgroundColor:'#e66767',borderRadius:4}]},options:barOpts({scales:{x:{stacked:true},y:{stacked:true,beginAtZero:true}}})});
 
- renderOpenings(G);renderRepertoire(G);renderSF(G,GA);renderProgress(G);renderTraining(G);renderInsights(G,GA);renderGames(G)}
+ renderOpenings(G);renderRepertoire(G);renderSF(G,GA);renderProgress(G);renderTraining(G);renderInsights(G,GA);renderBehaviour(G);renderGames(G)}
 
 /* ---------- ouvertures ---------- */
 let oSort={k:'n',dir:-1};
@@ -127,27 +134,29 @@ function renderSF(G,GA){const A=sfAgg(G);
  if(!A){$('sfBlock').hidden=true;$('sfMissing').hidden=false;
   $('sfMissing').textContent=analysedCads.length?`Aucune partie analysée dans cette sélection. Cadences analysées : ${analysedCads.join(', ')}. Pour en ajouter : python chess_dashboard_generator.py --cadences ${[...new Set([...analysedCads,$('fCadence').value||'blitz'])].join(',')}`:'Aucune partie analysée par Stockfish. Lance : python chess_dashboard_generator.py';return}
  $('sfBlock').hidden=false;$('sfMissing').hidden=true;
- const k=[['Parties analysées',A.n,G.length>A.n?`sur ${G.length} (cadences analysées : ${analysedCads.join(', ')})`:'toutes celles de la sélection'],['Précision estimée',fmt(A.prec)+' %','méthode Lichess'],['Perte moyenne / coup',fmt(A.acpl,0)+' cp','ACPL, en centièmes de pion'],['Gaffes / partie',fmt(A.gaf/A.n,2),fmt(A.err/A.n,2)+' erreurs · '+fmt(A.imp/A.n,1)+' imprécisions'],
+ const k=[['Parties analysées',A.n,G.length>A.n?`sur ${G.length} (cadences analysées : ${analysedCads.join(', ')})`:'toutes celles de la sélection'],['Précision estimée',fmt(A.prec)+' %',`ouverture ${fmt(phAcc(A,'ouverture'),0)} · milieu ${fmt(phAcc(A,'milieu'),0)} · finale ${fmt(phAcc(A,'finale'),0)}`],['Perte moyenne / coup',fmt(A.acpl,0)+' cp','ACPL, en centièmes de pion'],['Gaffes / partie',fmt(A.gaf/A.n,2),fmt(A.err/A.n,2)+' erreurs · '+fmt(A.imp/A.n,1)+' imprécisions'],
   ['Erreurs en zeitnot',fmt(pct(A.zt,A.errs),0)+' %',A.zt+' erreurs et gaffes sur '+A.errs],['Occasions manquées',fmt(A.occ/A.n,2)+' / partie','grosse erreur adverse non punie'],['Parties perdantes sauvées',A.losing?fmt(pct(A.saved,A.losing),0)+' %':'—',A.saved+' sur '+A.losing+' parties où tu étais perdant (nulle ou victoire)'],['Positions gagnantes gâchées',A.winning?fmt(pct(A.notConv,A.winning),0)+' %':'—',A.notConv+' sur '+A.winning+' parties où tu étais gagnant']];
  $('sfKpis').innerHTML=k.map(x=>`<div class="kpi"><div class="label">${x[0]}</div><div class="value">${x[1]}</div><div class="hint">${x[2]}</div></div>`).join('');
 
  const phs=['ouverture','milieu','finale'];const rate=(p,s)=>A.ph[p].coups?100*A.ph[p][s]/A.ph[p].coups:0;
- chart('phaseChart',{type:'bar',data:{labels:phs.map(p=>PHASE[p]+` (${A.ph[p].coups} coups)`),datasets:[['imp','Imprécisions','#c98500'],['err','Erreurs','#d95926'],['gaf','Gaffes','#e66767']].map(([s,l,c])=>({label:l,data:phs.map(p=>rate(p,s)),backgroundColor:c,borderRadius:4}))},
-  options:barOpts({plugins:{tooltip:{callbacks:{label:c=>`${c.dataset.label} : ${fmt(c.raw)} pour 100 coups`}}},scales:{y:{beginAtZero:true,title:{display:true,text:'pour 100 coups'}}}})});
+ chart('phaseChart',{type:'bar',data:{labels:phs.map(p=>PHASE[p]+` (${A.ph[p].coups} coups)`),datasets:[...[['imp','Imprécisions','#c98500'],['err','Erreurs','#d95926'],['gaf','Gaffes','#e66767']].map(([s,l,c])=>({label:l,data:phs.map(p=>rate(p,s)),backgroundColor:c,borderRadius:4})),
+   {type:'line',label:'Précision',data:phs.map(p=>phAcc(A,p)),yAxisID:'y1',borderColor:'#3987e5',backgroundColor:'#3987e5',pointRadius:4,borderWidth:2}]},
+  options:barOpts({plugins:{tooltip:{callbacks:{label:c=>c.dataset.yAxisID==='y1'?`Précision : ${fmt(c.raw)} %`:`${c.dataset.label} : ${fmt(c.raw)} pour 100 coups`}}},
+   scales:{y:{beginAtZero:true,title:{display:true,text:'pour 100 coups'}},y1:{position:'right',suggestedMin:60,max:100,grid:{drawOnChartArea:false},ticks:{callback:v=>v+' %'}}}})});
 
  const lost={};A.a.forEach(g=>{const c=cause(g);if(c)(lost[c]??={pts:0,games:[]}).pts+=1-g.pts,lost[c].games.push(g)});
  const ranked=Object.entries(lost).sort((a,b)=>b[1].pts-a[1].pts);const totalLost=ranked.reduce((t,[,v])=>t+v.pts,0);
  chart('causeChart',{type:'bar',data:{labels:ranked.map(([c])=>CAUSES[c]),datasets:[{label:'Points perdus',data:ranked.map(([,v])=>v.pts),backgroundColor:'#e66767',borderRadius:4,maxBarThickness:28}]},
   options:barOpts({indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${fmt(c.raw,1)} points · ${ranked[c.dataIndex][1].games.length} parties · ${fmt(pct(c.raw,totalLost),0)} % des points perdus`}}},scales:{x:{beginAtZero:true}}})});
 
- renderMotifs(G);renderTime(A);
+ renderMotifs(G);renderTime(A);renderEndgames(A);
  topCause=ranked[0]?.[0]||null;renderPriorities(A,ranked,totalLost,G);
 
  const cmp=analysedCads.map(c=>{const l=GA.filter(g=>g.cadence===c);const a=sfAgg(l);return a&&{c,s:score(a.a),a}}).filter(Boolean);
  const per100=(a,p)=>a.ph[p].coups?fmt(100*a.ph[p].gaf/a.ph[p].coups,1):'—';
- $('cmpTable').innerHTML='<tr><th>Cadence</th><th class="num">Analysées</th><th class="num">Score</th><th class="num">Précision</th><th class="num">ACPL</th><th class="num">Gaffes / partie</th><th class="num">Gaffes /100 coups<br>ouv. · milieu · finale</th><th class="num">Erreurs en zeitnot</th><th class="num">Défaites au temps</th><th class="num">Gagnantes gâchées</th></tr>'+
-  cmp.map(({c,s,a})=>`<tr><td>${esc(c)}</td><td class="num">${a.n}</td><td class="num">${fmt(s.s)} %</td><td class="num">${fmt(a.prec)} %</td><td class="num">${fmt(a.acpl,0)}</td><td class="num">${fmt(a.gaf/a.n,2)}</td><td class="num">${per100(a,'ouverture')} · ${per100(a,'milieu')} · ${per100(a,'finale')}</td><td class="num">${fmt(pct(a.zt,a.errs),0)} %</td><td class="num">${a.timeouts}</td><td class="num">${a.winning?fmt(pct(a.notConv,a.winning),0)+' %':'—'}</td></tr>`).join('')+
-  (cadences.filter(c=>!analysedCads.includes(c)).length?`<tr><td colspan="10" class="muted">Non analysées : ${cadences.filter(c=>!analysedCads.includes(c)).join(', ')} — python chess_dashboard_generator.py --cadences ${[...analysedCads,...cadences.filter(c=>!analysedCads.includes(c))].join(',')}</td></tr>`:'');
+ $('cmpTable').innerHTML='<tr><th>Cadence</th><th class="num">Analysées</th><th class="num">Score</th><th class="num">Précision</th><th class="num">Précision<br>ouv. · milieu · finale</th><th class="num">ACPL</th><th class="num">Gaffes / partie</th><th class="num">Gaffes /100 coups<br>ouv. · milieu · finale</th><th class="num">Erreurs en zeitnot</th><th class="num">Défaites au temps</th><th class="num">Gagnantes gâchées</th></tr>'+
+  cmp.map(({c,s,a})=>`<tr><td>${esc(c)}</td><td class="num">${a.n}</td><td class="num">${fmt(s.s)} %</td><td class="num">${fmt(a.prec)} %</td><td class="num">${['ouverture','milieu','finale'].map(p=>fmt(phAcc(a,p),0)).join(' · ')}</td><td class="num">${fmt(a.acpl,0)}</td><td class="num">${fmt(a.gaf/a.n,2)}</td><td class="num">${per100(a,'ouverture')} · ${per100(a,'milieu')} · ${per100(a,'finale')}</td><td class="num">${fmt(pct(a.zt,a.errs),0)} %</td><td class="num">${a.timeouts}</td><td class="num">${a.winning?fmt(pct(a.notConv,a.winning),0)+' %':'—'}</td></tr>`).join('')+
+  (cadences.filter(c=>!analysedCads.includes(c)).length?`<tr><td colspan="11" class="muted">Non analysées : ${cadences.filter(c=>!analysedCads.includes(c)).join(', ')} — python chess_dashboard_generator.py --cadences ${[...analysedCads,...cadences.filter(c=>!analysedCads.includes(c))].join(',')}</td></tr>`:'');
 
  renderMoments(G);
  const lw=A.a.filter(g=>g.sf.max_win>=T.win&&g.resultat!=='Victoire').reverse();
@@ -159,6 +168,16 @@ function renderMotifs(G){const M=motifCounts(G);
  $('motifSub').textContent=`Sur tes ${M.n} erreurs, gaffes et mats manqués. « Subi » : ce que la meilleure réponse adverse gagnait après ton coup ; « manqué » : ce que le meilleur coup gagnait. ${M.none} sans motif détecté (erreur positionnelle ou combinaison plus longue).`;
  chart('motifChart',{type:'bar',data:{labels:M.ranked.map(([k])=>MOTIFS[k]),datasets:[{label:'Moments',data:M.ranked.map(([,v])=>pct(v,M.n)),backgroundColor:M.ranked.map(([k])=>/_subie?$/.test(k)?'#e66767':'#c98500'),borderRadius:4,maxBarThickness:28}]},
   options:barOpts({indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${M.ranked[c.dataIndex][1]} moments · ${fmt(c.raw,0)} % de tes erreurs`}}},scales:{x:{beginAtZero:true,ticks:{callback:v=>v+' %'}}}})})}
+
+// Finales par type : chances de gain en y entrant, score obtenu, erreurs commises dans ce type de finale
+function endgameRows(A){const by={};A.a.forEach(g=>{const f=g.sf.finale;if(f)(by[f.type]??=[]).push(g)});
+ return Object.entries(by).map(([t,l])=>{const s=score(l),exp=l.reduce((x,g)=>x+g.sf.finale.w,0)/l.length,ids=new Set(l.map(g=>g.i));
+  const errs=D.moments.filter(m=>ids.has(m.g)&&m.ft===t&&m.sev!=='mat').length;
+  return {t,...s,exp,gap:s.s-exp,sig:scoreGap(s,exp/100),errs:errs/l.length}}).sort((a,b)=>b.n-a.n)}
+function renderEndgames(A){const rows=endgameRows(A),n=rows.reduce((t,r)=>t+r.n,0);
+ $('endSub').textContent=`Type de la première finale atteinte dans ${n} parties analysées (pièces restantes, rois et pions exclus). « Attendu » : ton score si tu convertissais exactement les chances de gain que Stockfish te donnait en entrant en finale.`;
+ $('endTable').innerHTML='<tr><th>Finale</th><th class="num">Parties</th><th>V-N-D</th><th class="num">Attendu</th><th class="num">Score</th><th>Écart</th><th class="num">Erreurs / partie</th></tr>'+rows.map(r=>`<tr><td>${FINALES[r.t]}${r.n<10?' <span class="muted">· petit échantillon</span>':''}</td><td class="num">${r.n}</td><td>${vnd(r)}</td><td class="num">${fmt(r.exp,0)} %</td><td class="num">${fmt(r.s,0)} %</td>
+  <td class="${r.sig>0?'win':r.sig<0?'loss':'muted'}">${(r.gap>0?'+':'')+fmt(r.gap,0)} pts${r.sig?'':' (hasard)'}</td><td class="num">${fmt(r.errs,2)}</td></tr>`).join('')||'<tr><td colspan="7" class="empty">Aucune finale atteinte dans les parties analysées.</td></tr>'}
 
 function renderTime(A){const total=A.tb.coups.reduce((t,x)=>t+x,0);
  $('timeSub').textContent=total?`Temps passé sur le coup, en part du temps total d'une partie (temps initial + 40 incréments ; en 10 min : réflexe = moins de ${Math.round(600*T.tps[0])} s, longue réflexion = ${Math.round(600*T.tps[T.tps.length-1])} s et plus). `+(A.t15!=null?`Au ${T.t15}e coup, tu as utilisé en moyenne ${fmt(A.t15,0)} % de ton temps initial.`:'')
@@ -184,6 +203,9 @@ const ADVICE={
 function renderPriorities(A,ranked,totalLost,G){
  const cad=$('fCadence').value;$('prioSub').textContent=`Classées selon les points perdus dans les ${A.n} parties analysées${cad?' en '+cad:' (toutes cadences analysées confondues : filtre « Cadence » pour les séparer)'}. Seules les parties non gagnées comptent.`;
  const evidence=(c,v)=>{const ph=A.ph[c];const base=`${fmt(v.pts,1)} points perdus dans ${v.games.length} parties (${fmt(pct(v.pts,totalLost),0)} % du total).`;
+  if(c==='finale'){const w=endgameRows(A).filter(r=>r.n>=5).sort((a,b)=>a.gap-b.gap)[0];
+   return base+` Dans cette phase, tu fais ${fmt(100*ph.gaf/ph.coups,1)} gaffes pour 100 coups, avec une précision de ${fmt(phAcc(A,'finale'),0)} %.`
+    +(w&&w.gap<0?` Type le plus coûteux : ${FINALES[w.t].toLowerCase()} (${fmt(w.s,0)} % de score pour ${fmt(w.exp,0)} % attendus, ${w.n} parties).`:'')}
   if(ph)return base+` Dans cette phase, tu fais ${fmt(100*ph.gaf/ph.coups,1)} gaffes pour 100 coups.`+(c==='milieu'&&A.occ?` Tu as aussi laissé passer ${A.occ} grosses erreurs adverses sans les punir.`:'')
    +(c==='milieu'?(()=>{const M=motifCounts(G);return M.ranked.length?` Motif le plus fréquent : ${MOTIFS[M.ranked[0][0]].toLowerCase()} (${fmt(pct(M.ranked[0][1],M.n),0)} % de tes erreurs).`:''})():'');
   if(c==='temps')return base+` ${fmt(pct(A.zt,A.errs),0)} % de tes erreurs et gaffes sont commises en zeitnot, et ${A.timeouts} défaites sont des pertes au temps.`
@@ -200,18 +222,21 @@ function renderPriorities(A,ranked,totalLost,G){
 function renderInsights(G,GA){const out=[];
  const byCad=cadences.map(c=>({c,...score(GA.filter(g=>g.cadence===c))})).filter(x=>x.n>=30).sort((a,b)=>b.s-a.s);
  if(byCad.length>1){const b=byCad[0],w=byCad[byCad.length-1],share=pct(GA.filter(g=>g.cadence==='blitz').length,GA.length);
-  out.push(`Tu scores <b>${fmt(b.s)} %</b> en ${b.c} contre <b>${fmt(w.s)} %</b> en ${w.c} : ${fmt(b.s-w.s)} points d'écart.`+(share>40?` Le blitz représente ${fmt(share,0)} % de tes parties.`:''))}
+  out.push(`Tu scores <b>${fmt(b.s)} %</b> en ${b.c} contre <b>${fmt(w.s)} %</b> en ${w.c} : ${fmt(b.s-w.s)} points d'écart${scoresDiffer(b,w)?'':HASARD}.`+(share>40?` Le blitz représente ${fmt(share,0)} % de tes parties.`:''))}
  const col=['Blancs','Noirs'].map(c=>({c,...score(G.filter(g=>g.couleur===c))}));
- if(col[0].n>=10&&col[1].n>=10){const [hi,lo]=col[0].s>=col[1].s?col:[col[1],col[0]];out.push(`Avec les ${hi.c}, ton score est de <b>${fmt(hi.s)} %</b> contre ${fmt(lo.s)} % avec les ${lo.c} (${fmt(hi.s-lo.s)} points d'écart).`)}
+ if(col[0].n>=10&&col[1].n>=10){const [hi,lo]=col[0].s>=col[1].s?col:[col[1],col[0]];out.push(`Avec les ${hi.c}, ton score est de <b>${fmt(hi.s)} %</b> contre ${fmt(lo.s)} % avec les ${lo.c} (${fmt(hi.s-lo.s)} points d'écart${scoresDiffer(hi,lo)?'':HASARD}).`)}
  const comp=score(G.filter(g=>Math.abs(gap(g))<=50));if(comp.n>=10)out.push(`Contre des adversaires de niveau comparable (±50 Elo), ton score est de <b>${fmt(comp.s)} %</b> sur ${comp.n} parties.`);
  const op=openingRows(G,'famille',10).sort((a,b)=>b.s-a.s);if(op.length>1){const b=op[0],w=op[op.length-1];out.push(`Ouverture la plus rentable (≥ 10 parties) : <b>${esc(b.name)}</b> avec les ${b.col} (${fmt(b.s)} %). La moins rentable : <b>${esc(w.name)}</b> avec les ${w.col} (${fmt(w.s)} %, ${vnd(w)}).`)}
  const A=sfAgg(G);if(A){const phs=['ouverture','milieu','finale'].filter(p=>A.ph[p].coups>=50).map(p=>({p,r:100*A.ph[p].gaf/A.ph[p].coups})).sort((a,b)=>b.r-a.r);
   if(phs.length)out.push(`Stockfish : ${fmt(A.gaf/A.n,2)} gaffe par partie en moyenne ; c'est en <b>${PHASE[phs[0].p].toLowerCase()}</b> que tu gaffes le plus (${fmt(phs[0].r,1)} pour 100 coups).`);
+  const accs=['ouverture','milieu','finale'].filter(p=>A.ph[p].coups>=50).map(p=>({p,v:phAcc(A,p)})).sort((a,b)=>a.v-b.v);
+  if(accs.length>1)out.push(`Ta précision est la plus basse en <b>${PHASE[accs[0].p].toLowerCase()}</b> (${fmt(accs[0].v,1)} %) et la plus haute en ${PHASE[accs[accs.length-1].p].toLowerCase()} (${fmt(accs[accs.length-1].v,1)} %).`);
   if(A.winning)out.push(`Tu as obtenu une position gagnante dans ${A.winning} parties analysées et n'en as pas gagné <b>${A.notConv}</b> (${fmt(pct(A.notConv,A.winning),0)} %).`);
   if(A.losing>=5)out.push(`Tu as été perdant (moins de ${100-T.win} % de chances de gain) dans ${A.losing} parties analysées et en as sauvé <b>${A.saved}</b> (${fmt(pct(A.saved,A.losing),0)} %) par une nulle ou une victoire.`);
   const fast=tbRate(A,0),rest=tbRest(A,0);
   if(A.tb.coups[0]>=50&&fast!=null&&rest&&fast>=1.5*rest)out.push(`Tes coups joués en réflexe sont <b>${fmt(fast/rest,1)} fois</b> plus souvent des erreurs que les autres (${fmt(fast,1)} contre ${fmt(rest,1)} pour 100 coups) : prends quelques secondes pour vérifier les menaces avant de jouer.`);
   const M=motifCounts(G);if(M.ranked.length&&M.n>=20)out.push(`Motif tactique le plus fréquent dans tes erreurs : <b>${MOTIFS[M.ranked[0][0]].toLowerCase()}</b> (${fmt(pct(M.ranked[0][1],M.n),0)} % des ${M.n} erreurs).`)}
+ out.push(...behaviourFacts(G));
  $('insights').innerHTML=out.map(x=>`<li>${x}</li>`).join('')||'<li class="muted">Pas assez de parties dans la sélection.</li>'}
 
 /* ---------- historique ---------- */

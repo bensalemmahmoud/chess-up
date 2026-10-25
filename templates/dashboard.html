@@ -69,7 +69,7 @@ main{padding:14px 16px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.char
 <section class="panel" id="prioPanel"><div class="phead"><div><h2>Tes 3 priorités d'entraînement</h2><p class="sub" id="prioSub"></p></div><a class="cta" href="#entrainement" id="cta">S'entraîner →</a></div><div class="prio" id="prio"></div></section>
 <section class="panel" id="objPanel" style="margin-top:14px" hidden><h2 id="objTitle"></h2><p class="sub" id="objSub"></p>
 <p id="objSummary"></p><div class="tablewrap"><table id="objTable"></table></div>
-<div class="note">Calculé sur les mêmes critères Stockfish que tes parties. Les indicateurs sont classés du plus gros écart au plus petit.</div></section>
+<div class="note">Calculé sur les mêmes critères Stockfish que tes parties. Les indicateurs sont classés du plus gros écart au plus petit. « Dans la marge du hasard » : avec ce nombre de parties, l'écart pourrait n'être que de la chance.</div></section>
 <section class="panel" style="margin-top:14px"><h2>Constats clés</h2><p class="sub">Générés automatiquement à partir des parties filtrées.</p><ul class="insights" id="insights"></ul></section>
 </div>
 
@@ -89,6 +89,13 @@ main{padding:14px 16px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.char
 <section class="panel"><h2>Évolution de l'Elo</h2><p class="sub">Dernier Elo de chaque semaine, une courbe par cadence.</p><div class="chartbox"><canvas id="eloChart"></canvas></div></section>
 <section class="panel full"><h2>Parties par mois</h2><div class="chartbox" style="height:240px"><canvas id="monthlyChart"></canvas></div></section>
 </div>
+<div class="part">Comportement</div>
+<div class="charts">
+<section class="panel"><h2>Après une victoire ou une défaite</h2><p class="sub" id="tiltSub"></p><div class="chartbox"><canvas id="tiltChart"></canvas></div></section>
+<section class="panel"><h2>Au fil de la session</h2><p class="sub" id="sessSub"></p><div class="chartbox"><canvas id="sessChart"></canvas></div></section>
+<section class="panel full"><h2>Selon l'heure de la partie</h2><p class="sub" id="hourSub"></p><div class="chartbox" style="height:240px"><canvas id="hourChart"></canvas></div></section>
+</div>
+<div class="note">Barre verte ou rouge : score nettement au-dessus ou au-dessous de ton score global. Barre grise : l'écart reste dans la marge du hasard pour ce nombre de parties.</div>
 <div class="part">Ouvertures</div>
 <section class="panel"><h2>Tes ouvertures</h2><p class="sub">L'évaluation Stockfish après 12 coups indique si l'ouverture te laisse une position saine (en pions, de ton point de vue).</p>
 <div class="filters"><label>Regrouper par <select id="oGroup"><option value="famille">famille</option><option value="variante">variante</option></select></label>
@@ -103,12 +110,13 @@ main{padding:14px 16px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.char
 <div class="grid" id="sfKpis"></div>
 <section class="panel"><div class="phead"><div><h2>Ta progression mois par mois</h2><p class="sub" id="progNote"></p></div><select id="progInd" class="select"></select></div><div class="chartbox"><canvas id="progChart"></canvas></div></section>
 <div class="charts">
-<section class="panel"><h2>Erreurs par phase de jeu</h2><p class="sub">Pour 100 de tes coups joués dans chaque phase.</p><div class="chartbox"><canvas id="phaseChart"></canvas></div></section>
+<section class="panel"><h2>Erreurs par phase de jeu</h2><p class="sub">Pour 100 de tes coups joués dans chaque phase ; la courbe donne ta précision moyenne (échelle de droite).</p><div class="chartbox"><canvas id="phaseChart"></canvas></div></section>
 <section class="panel"><h2>Comment tes parties non gagnées ont basculé</h2><p class="sub">Points perdus (défaite = 1, nulle = ½), selon la cause principale.</p><div class="chartbox"><canvas id="causeChart"></canvas></div></section>
 <section class="panel"><h2>Motifs tactiques de tes erreurs</h2><p class="sub" id="motifSub"></p><div class="chartbox"><canvas id="motifChart"></canvas></div></section>
 <section class="panel"><h2>Erreurs selon le temps de réflexion</h2><p class="sub" id="timeSub"></p><div class="chartbox"><canvas id="timeChart"></canvas></div></section>
 </div>
 <section class="panel" style="margin-top:14px"><h2>Rapid contre blitz : les erreurs ne se ressemblent pas</h2><p class="sub">Toutes les cadences analysées, autres filtres appliqués.</p><div class="tablewrap"><table id="cmpTable"></table></div></section>
+<section class="panel" style="margin-top:14px"><h2>Tes finales</h2><p class="sub" id="endSub"></p><div class="tablewrap"><table id="endTable"></table></div></section>
 <section class="panel" style="margin-top:14px"><h2>Moments critiques</h2><p class="sub">Tes erreurs et gaffes, avec le meilleur coup de Stockfish. « Position » ouvre l'échiquier d'analyse Lichess sur la position, avant ton coup.</p>
 <div class="filters"><select id="mType"><option value="">Erreurs et gaffes</option><option value="gaf">Gaffes seulement</option><option value="occ">Occasions manquées</option><option value="mm">Mats manqués</option><option value="zt">En zeitnot</option></select>
 <select id="mPhase"><option value="">Toutes les phases</option><option value="ouverture">Ouverture</option><option value="milieu">Milieu de partie</option><option value="finale">Finale</option></select>

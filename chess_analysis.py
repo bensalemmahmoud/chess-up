@@ -222,6 +222,22 @@ def phase_of(board):
     return "milieu"
 
 
+def endgame_type(board):
+    """Type de finale selon les pièces restantes (rois et pions exclus), pour les deux camps."""
+    kinds = {pt for pt in (chess.KNIGHT, chess.BISHOP, chess.ROOK, chess.QUEEN) if board.pieces(pt, chess.WHITE) or board.pieces(pt, chess.BLACK)}
+    if not kinds:
+        return "pions"
+    if kinds == {chess.ROOK}:
+        return "tours"
+    if kinds <= {chess.KNIGHT, chess.BISHOP}:
+        return "mineures"
+    if kinds == {chess.QUEEN}:
+        return "dames"
+    if kinds <= {chess.ROOK, chess.KNIGHT, chess.BISHOP}:
+        return "tours_mineures"
+    return "dames_pieces"
+
+
 def base_seconds(time_control):
     m = re.match(r"^(\d+)(?:\+\d+)?$", str(time_control or ""))
     return int(m.group(1)) if m else None   # None pour les parties par correspondance (« 1/86400 »)
@@ -309,7 +325,9 @@ def game_metrics(row, pgn, analysis):
     budget = base + 40 * inc if base else None
 
     phases = ("ouverture", "milieu", "finale")
-    stats = {p: {"coups": 0, "imp": 0, "err": 0, "gaf": 0} for p in phases}
+    # acc : somme des précisions des coups de la phase (la moyenne se calcule sur l'ensemble des parties)
+    stats = {p: {"coups": 0, "imp": 0, "err": 0, "gaf": 0, "acc": 0.0} for p in phases}
+    endgame = None
     # coups joués et erreurs (erreurs + gaffes) selon le temps de réflexion (TIME_BUCKETS)
     times = {"coups": [0] * (len(TIME_BUCKETS) + 1), "err": [0] * (len(TIME_BUCKETS) + 1)}
     cpl, accs, moments = [], [], []
@@ -329,6 +347,10 @@ def game_metrics(row, pgn, analysis):
             s["coups"] += 1
             cpl.append(max(0, min(1000, before) - min(1000, after)))
             accs.append(move_accuracy(loss))
+            s["acc"] += accs[-1]
+            ft = endgame_type(board) if ph == "finale" else None
+            if ft and endgame is None:   # première finale atteinte : son type et tes chances de gain à l'entrée
+                endgame = {"type": ft, "w": round(wb)}
             clock = node.clock()
             zeit = bool(zeitnot_limit and clock is not None and clock < zeitnot_limit)
             own_moves += 1
@@ -370,7 +392,7 @@ def game_metrics(row, pgn, analysis):
                     "wb": round(wb), "wa": round(wa), "ph": ph, "zt": zeit,
                     "sev": sev or "mat", "occ": bool(opp_gift and sev), "mm": mate_missed,
                     "clk": round(clock) if clock is not None else None, "alts": alts,
-                    "t": None if spent is None else round(spent), "tb": bucket,
+                    "t": None if spent is None else round(spent), "tb": bucket, "ft": ft,
                     "mot": motifs(board, move, best[ply], best[ply + 1] if ply + 1 < len(best) else "", before, after),
                 })
             if loss >= MISTAKE and (decisive is None or loss > decisive["loss"]):
@@ -381,14 +403,14 @@ def game_metrics(row, pgn, analysis):
     opening_eval = evals[OPENING_END_PLY] if len(evals) > OPENING_END_PLY else None
     metrics = {
         "coups": sum(s["coups"] for s in stats.values()),
-        "phases": stats,
+        "phases": {p: {**s, "acc": round(s["acc"], 1)} for p, s in stats.items()},
         "acpl": round(sum(cpl) / len(cpl), 1) if cpl else None,
         "prec": round(sum(accs) / len(accs), 1) if accs else None,
         "zt_err": zeit_err, "occ": missed_opp, "mm": missed_mate,
         "max_win": round(max(my_wins)) if my_wins else None,
         "min_win": round(min(my_wins)) if my_wins else None,
         "tps": times if budget and sum(times["coups"]) else None,
-        "t15": time_used,
+        "t15": time_used, "finale": endgame,
         "eval_ouv": None if opening_eval is None else round(max(-1000, min(1000, opening_eval))),
         "decisive": decisive,
     }

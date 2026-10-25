@@ -3,6 +3,7 @@ const DECKS={
  conversion:['Conversion des positions gagnantes',(m,g)=>m.wb>=T.win&&g.resultat!=='Victoire'],
  milieu:['Tactique en milieu de partie',m=>m.ph==='milieu'],
  finale:['Technique de finale',m=>m.ph==='finale'],
+ ...Object.fromEntries(Object.entries(FINALES).map(([k,l])=>['fin_'+k,['· '+l,m=>m.ft===k]])),   // une finale par type
  ouverture:['Sortie d\'ouverture',m=>m.ph==='ouverture'],
  repertoire:['Mon répertoire d\'ouvertures',null],   // positions récurrentes de tes ouvertures (repertoire.js)
  occ:['Occasions manquées',m=>m.occ],

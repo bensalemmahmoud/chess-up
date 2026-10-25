@@ -166,6 +166,7 @@ def game_row(game):
         "lien": game.get("url", ""), "time_control": game.get("time_control", ""),
         "rated": game.get("rated", ""), "fin": termination(mine, opp),
         "rules": game.get("rules", "chess"), "coups": first_moves(pgn),
+        "ts": int(game["end_time"]) if game.get("end_time") else "",   # fin de la partie (secondes UTC) : sessions, heure de jeu
     }
 
 # ---------------------------------------------------------------- Lichess
@@ -268,6 +269,7 @@ def lichess_row(game):
         "rated": game.get("rated", ""), "fin": fin,
         "rules": "chess" if variant == "standard" else variant,
         "coups": " ".join(game.get("moves", "").split()[:chess_analysis.OPENING_PLIES]),
+        "ts": ts // 1000 if ts else "",
     }
 
 def default_since():
@@ -501,7 +503,7 @@ def run(args):
     CACHE_DIR.mkdir(exist_ok=True)
 
     pairs = fetch_lichess_rows(args) if lichess else fetch_chesscom(args)
-    pairs.sort(key=lambda p: (p[0]["date"], p[0]["lien"]))
+    pairs.sort(key=lambda p: (p[0]["date"], p[0]["ts"] or 0, p[0]["lien"]))
     rows = [r for r, _ in pairs]
     pgns = {r["lien"]: pgn for r, pgn in pairs}
 
@@ -641,7 +643,7 @@ def template(name):
     return (TEMPLATES_DIR / name).read_text(encoding="utf-8")
 
 # Code du tableau de bord, un fichier par fonctionnalité, réunis dans un seul <script> (l'ordre compte : demarrage.js en dernier)
-DASHBOARD_SCRIPTS = ["base.js", "entrainement.js", "moteur.js", "repertoire.js", "objectif.js", "adversaire.js", "synchro.js", "demarrage.js"]
+DASHBOARD_SCRIPTS = ["base.js", "comportement.js", "entrainement.js", "moteur.js", "repertoire.js", "objectif.js", "adversaire.js", "synchro.js", "demarrage.js"]
 
 def dashboard_page():
     return template("dashboard.html").replace("__SCRIPT__", "\n".join(template(f"js/{name}") for name in DASHBOARD_SCRIPTS))
