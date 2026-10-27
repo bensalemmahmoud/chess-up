@@ -7,9 +7,9 @@ D.games.forEach((g,i)=>{const p=D.games[i-1],same=p&&g.ts&&p.ts&&g.ts>=p.ts&&g.t
 
 // Barres de score : vertes ou rouges si l'écart avec le score global dépasse la marge du hasard, grises sinon
 function scoreBars(id,groups,ref){
- chart(id,{type:'bar',data:{labels:groups.map(x=>x.l),datasets:[{label:'Score',data:groups.map(x=>x.s),backgroundColor:groups.map(x=>({1:'#199e70','-1':'#e66767'})[scoreGap(x,ref)]||'#5b6b80'),borderRadius:4,maxBarThickness:56}]},
+ chart(id,{type:'bar',data:{labels:groups.map(x=>x.lab),datasets:[{label:'Score',data:groups.map(x=>x.s),backgroundColor:groups.map(x=>({1:'#199e70','-1':'#e66767'})[scoreGap(x,ref)]||'#5b6b80'),borderRadius:4,maxBarThickness:56}]},
   options:barOpts({plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`Score ${fmt(c.raw)} % · ${groups[c.dataIndex].n} parties (${vnd(groups[c.dataIndex])})`}}},scales:{y:{min:0,max:100,ticks:{callback:v=>v+' %'}}}})})}
-const groupScores=(G,defs)=>defs.map(([l,f])=>({l,...score(G.filter(f))})).filter(x=>x.n);
+const groupScores=(G,defs)=>defs.map(([lab,f])=>({lab,...score(G.filter(f))})).filter(x=>x.n);
 
 const TILT=[['Première de la session',g=>!g.avant],['Après une victoire',g=>g.avant==='Victoire'],['Après une nulle',g=>g.avant==='Nulle'],
  ['Après une défaite',g=>g.pertes===1],['Après 2 défaites ou plus',g=>g.pertes>=2]];
@@ -31,5 +31,5 @@ function behaviourFacts(G){const L=G.filter(g=>g.ts);if(L.length<50)return [];co
  const late=score(L.filter(g=>g.rang>=4));
  if(scoreGap(late,ref)<0)out.push(`À partir de la 4e partie d'une session, ton score tombe à <b>${fmt(late.s)} %</b> (${late.n} parties) : des sessions plus courtes te réussissent mieux.`);
  const hours=groupScores(L,HOURS).filter(x=>scoreGap(x,ref)!==0).sort((a,b)=>a.s-b.s);
- if(hours.length)out.push(`Selon l'heure de jeu, écarts nets avec ton score moyen (${fmt(100*ref)} %) : `+hours.map(x=>`${x.l.split(' (')[0].toLowerCase()} <b>${fmt(x.s)} %</b> (${x.n} parties)`).join(', ')+'.');
+ if(hours.length)out.push(`Selon l'heure de jeu, écarts nets avec ton score moyen (${fmt(100*ref)} %) : `+hours.map(x=>`${x.lab.split(' (')[0].toLowerCase()} <b>${fmt(x.s)} %</b> (${x.n} parties)`).join(', ')+'.');
  return out}
