@@ -85,6 +85,67 @@ class ObjectiveSample(unittest.TestCase):
         self.assertIsNone(gen.sample_objective([{"cadence": "rapid", "adversaire": "x", "elo_adversaire": 1200}], False, "rapid", 2050))
 
 
+class StrongerStudies(unittest.TestCase):
+    """Positions d'étude de joueurs plus forts : tous les échantillons en cache du même site, au-dessus du joueur."""
+
+    def setUp(self):
+        import json, tempfile
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from test_analysis import StudyPositions
+        self.saved = gen.OBJECTIVES_CACHE
+        game = lambda lien, cadence: {"lien": lien, "cadence": cadence, "couleur": "Blancs", "elo_joueur": 2100,
+                                      "famille": "Queen's Gambit", "pgn": StudyPositions.PGN}
+        store = {"chesscom:rapid:2100": {"games": [game("r1", "rapid")]},
+                 "chesscom:blitz:2600": {"games": [game("b1", "blitz"), game("r1", "rapid")]},   # r1 en double
+                 "chesscom:rapid:1500": {"games": [game("faible", "rapid")]},                    # sous le joueur
+                 "lichess:rapid:2100": {"games": [game("li", "rapid")]}}                         # autre site
+        self.tmp = tempfile.TemporaryDirectory()
+        gen.OBJECTIVES_CACHE = Path(self.tmp.name) / "objectifs.json"
+        gen.OBJECTIVES_CACHE.write_text(json.dumps(store), encoding="utf-8")
+        analysis = {"e": [30] * 9, "b": StudyPositions.BEST}
+        self.cache = {lien: analysis for lien in ("r1", "b1", "faible", "li")}
+
+    def tearDown(self):
+        gen.OBJECTIVES_CACHE = self.saved
+        self.tmp.cleanup()
+
+    def test_samples_above_the_player_on_the_same_site(self):
+        rows = [{"cadence": "rapid", "elo_joueur": 1900, "sf": {"coups": 30}}]
+        studies = gen.stronger_studies(rows, False, self.cache)
+        self.assertEqual([s["cad"] for s in studies], ["rapid", "blitz"])   # l'échantillon le plus proche de l'objectif d'abord
+        self.assertTrue(all("lien" not in s and "g" not in s for s in studies))
+        self.assertEqual(studies[0]["elo"], 2100)
+
+    def test_nothing_without_analysed_games(self):
+        self.assertEqual(gen.stronger_studies([{"cadence": "rapid", "elo_joueur": 1900, "sf": None}], False, self.cache), [])
+
+
+class ClassicalSample(unittest.TestCase):
+    def setUp(self):
+        self.saved = (gen.USERNAME, gen.get_json, gen.recent_games_lichess, gen.time.sleep)
+        gen.USERNAME = "me"
+        gen.time.sleep = lambda s: None
+
+    def tearDown(self):
+        gen.USERNAME, gen.get_json, gen.recent_games_lichess, gen.time.sleep = self.saved
+
+    def test_top_players_games_seen_from_their_side(self):
+        gen.get_json = lambda url: {"users": [{"username": f"Top{i}"} for i in range(20)]}
+        calls = []
+        def fake(name, cadence):
+            calls.append((name, gen.USERNAME, cadence))
+            if name == "Top0":
+                raise RuntimeError("compte fermé")
+            game = {"couleur": "Blancs", "rules": "chess", "lien": name, "cadence": cadence}
+            return [(dict(game, lien=f"{name}-{i}"), "1. e4 e5") for i in range(gen.CLASSICAL_GAMES + 3)]
+        gen.recent_games_lichess = fake
+        entry = gen.sample_classical()
+        self.assertEqual(entry["players"], gen.CLASSICAL_PLAYERS)              # Top0 ignoré, les suivants complètent
+        self.assertEqual(len(entry["games"]), gen.CLASSICAL_PLAYERS * gen.CLASSICAL_GAMES)
+        self.assertTrue(all(user == name.lower() and cadence == "classical" for name, user, cadence in calls))
+        self.assertEqual(gen.USERNAME, "me")
+
+
 class LichessRow(unittest.TestCase):
     GAME = {
         "id": "abcd1234", "rated": True, "variant": "standard", "speed": "rapid", "status": "resign",

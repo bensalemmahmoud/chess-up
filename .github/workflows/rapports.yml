@@ -61,6 +61,7 @@ jobs:
             cache/parties
             cache/analyses.ci.json
             cache/objectifs.json
+            cache/classiques.json
           key: chess-cache-${{ github.run_id }}
           restore-keys: chess-cache-
 

@@ -10,6 +10,8 @@ const DECKS={
  mm:['Mats manqués',m=>m.mm],
  temps:['Erreurs en zeitnot',m=>m.zt],
  reflexe:['Erreurs jouées en réflexe',m=>m.tb===0],
+ roi_moi:['Erreurs avec ton roi exposé',m=>(m.ctx||[]).some(k=>k==='moi_roi_ouvert'||k==='moi_roi_centre')],
+ roi_adv:['Erreurs face à un roi adverse exposé',m=>(m.ctx||[]).some(k=>k==='adv_roi_ouvert'||k==='adv_roi_centre')],
  defense:['Défense des positions inférieures',m=>m.wb<40&&m.sev!=='mat'],   // erreurs commises alors que tu étais déjà moins bien
  materiel:['Matériel en prise',m=>(m.mot||[]).some(k=>k.startsWith('materiel'))],
  fourchette:['Fourchettes',m=>(m.mot||[]).some(k=>k.startsWith('fourchette'))],
@@ -27,11 +29,11 @@ const winPct=cp=>{cp=Math.max(-1000,Math.min(1000,cp));return 50+50*(2/(1+Math.e
 const PLAYOUT_MOVES=20;   // partie contre Stockfish : position « convertie » si toujours gagnante après ce nombre de coups
 let topCause=null,deckChosen=false,queue=[],cur=null,session={ok:0,n:0},trIds=new Set();
 
-// Échiquier en HTML : marks = {last:[cases], sel, hint, targets:[{to, capture}]}
+// Échiquier en HTML : marks = {last:[cases], sel, hint, targets:[{to, capture}], zone:[cases surlignées]}
 function boardHTML(G,flip,marks={}){let h='';
  for(let r=0;r<8;r++)for(let c=0;c<8;c++){const f=flip?7-c:c,rk=flip?r+1:8-r,sq='abcdefgh'[f]+rk,p=G.get(sq),t=(marks.targets||[]).some(x=>x.to===sq);
   const cls=['sq',(f+rk)%2?'dark':'light'];   // a1 (f=0, rangée 1) est une case foncée
-  if(marks.last&&marks.last.includes(sq))cls.push('last');if(marks.sel===sq)cls.push('sel');if(marks.hint===sq)cls.push('hint');if(t)cls.push('target',p?'capt':'');
+  if(marks.last&&marks.last.includes(sq))cls.push('last');if(marks.sel===sq)cls.push('sel');if(marks.hint===sq)cls.push('hint');if(marks.zone&&marks.zone.includes(sq))cls.push('zone');if(t)cls.push('target',p?'capt':'');
   h+=`<div class="${cls.join(' ')}" data-sq="${sq}">${c===0?`<span class="coord r">${rk}</span>`:''}${r===7?`<span class="coord f">${'abcdefgh'[f]}</span>`:''}${p?`<span class="pc ${p.color}">${GLYPH[p.type]}</span>`:''}</div>`}
  return h}
 

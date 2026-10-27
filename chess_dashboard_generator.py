@@ -35,6 +35,10 @@ OBJECTIVE_PLAYERS = 15     # joueurs de l'échantillon...
 OBJECTIVE_GAMES = 6        # ... et parties récentes analysées pour chacun
 OBJECTIVE_WIDTH = 75       # « autour de » l'objectif : à ± ce nombre de points
 OBJECTIVE_MAX_AGE = 30     # jours avant de renouveler l'échantillon
+STUDY_OTHERS_MAX = 300     # positions d'étude tirées des parties de joueurs plus forts
+CLASSICAL_CACHE = CACHE_DIR / "classiques.json"   # parties longues de joueurs forts, partagées par tous les rapports
+CLASSICAL_PLAYERS = 12     # joueurs du haut du classement Lichess en cadence classique...
+CLASSICAL_GAMES = 6        # ... et parties récentes de chacun
 MONTHS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août",
              "septembre", "octobre", "novembre", "décembre"]
 USERNAME = DEFAULT_USERNAME              # remplacé par --user dans main()
@@ -432,6 +436,90 @@ def build_objective(args, rows, lichess, cache):
     return {"cadence": cadence, "target": target, "elo": entry["elo"], "players": entry["players"],
             "date": entry["date"][:10], "games": metrics} if metrics else None
 
+def stronger_studies(rows, lichess, cache):
+    """Positions d'étude tirées des parties de joueurs plus forts : tous les échantillons en cache (objectifs.json,
+    partagés entre joueurs) du même site au-dessus du niveau du joueur, toutes cadences, les plus proches de son
+    objectif d'abord. Ni lien ni pseudo : seulement le niveau, la cadence et l'ouverture."""
+    analysed = Counter(r["cadence"] for r in rows if r["sf"])
+    if not analysed:
+        return []
+    cadence = analysed.most_common(1)[0][0]
+    elos = [int(r["elo_joueur"]) for r in rows if r["cadence"] == cadence and r["elo_joueur"]]
+    if not elos:
+        return []
+    level, site = elos[-1], "lichess" if lichess else "chesscom"
+    samples = []
+    for key, entry in chess_analysis.load_cache(OBJECTIVES_CACHE).items():
+        s, cad, target = key.split(":")
+        if s == site and int(target) > level:
+            samples.append((abs(int(target) - level - OBJECTIVE_GAP), cad != cadence, entry))
+    studies, seen = [], set()
+    for _, _, entry in sorted(samples, key=lambda x: x[:2]):
+        for g in entry["games"]:
+            if g["lien"] in seen or g["lien"] not in cache or len(studies) >= STUDY_OTHERS_MAX:
+                continue
+            seen.add(g["lien"])
+            try:
+                studies += [{**p, "elo": int(g["elo_joueur"]) if g.get("elo_joueur") else None, "fam": g.get("famille"), "cad": g["cadence"]}
+                            for p in chess_analysis.study_positions(g, g["pgn"], cache[g["lien"]])]
+            except Exception:
+                pass
+    return studies[:STUDY_OTHERS_MAX]
+
+def classical_studies(args):
+    """Positions d'étude tirées de parties longues (cadence classique Lichess) de joueurs du haut du classement :
+    on y a le temps de jouer des positions, quel que soit le site du joueur. L'échantillon est commun à tous les
+    rapports, renouvelé tous les OBJECTIVE_MAX_AGE jours (jamais avec --no-analysis). Ni lien ni pseudo."""
+    entry = chess_analysis.load_cache(CLASSICAL_CACHE) or None
+    age = (datetime.now() - datetime.fromisoformat(entry["date"])).days if entry else None
+    if (entry is None or age > OBJECTIVE_MAX_AGE) and not args.no_analysis:
+        try:
+            entry = sample_classical() or entry
+        except Exception as exc:
+            print(f"Parties longues de joueurs forts indisponibles : {exc}")
+        if entry:
+            chess_analysis.save_cache(CLASSICAL_CACHE, entry)
+    if not entry:
+        return []
+    games = entry["games"]
+    if args.no_analysis:
+        cache = chess_analysis.load_cache(ANALYSIS_CACHE)
+    else:
+        cache = chess_analysis.analyse_games([{"lien": g["lien"], "pgn": g["pgn"]} for g in games], ANALYSIS_CACHE,
+                                             depth=args.depth, workers=args.workers, alternatives=False)
+    studies = []
+    for g in games:
+        if g["lien"] in cache:
+            try:
+                studies += [{**p, "elo": int(g["elo_joueur"]) if g.get("elo_joueur") else None, "fam": g.get("famille"),
+                             "cad": g["cadence"], "src": "cl"} for p in chess_analysis.study_positions(g, g["pgn"], cache[g["lien"]])]
+            except Exception:
+                pass
+    return studies
+
+def sample_classical():
+    global USERNAME
+    me = USERNAME
+    top = get_json("https://lichess.org/api/player/top/50/classical").get("users", [])
+    games, players = [], 0
+    try:
+        for user in top:
+            if players >= CLASSICAL_PLAYERS:
+                break
+            USERNAME = user["username"].lower()   # les parties vues du côté de ce joueur
+            try:
+                found = recent_games_lichess(user["username"], "classical")
+            except Exception:
+                continue
+            found = [(r, pgn) for r, pgn in found if r["couleur"] != "Inconnu" and r["rules"] == "chess" and pgn][-CLASSICAL_GAMES:]
+            if found:
+                players += 1
+                games += [{**r, "pgn": pgn} for r, pgn in found]
+            time.sleep(0.5)
+    finally:
+        USERNAME = me
+    return {"date": datetime.now().isoformat(timespec="seconds"), "players": players, "games": games} if games else None
+
 def sample_objective(rows, lichess, cadence, target):
     """Joueurs autour de target : d'abord les adversaires du joueur à ce niveau, puis, s'il en manque,
     les adversaires de ces joueurs eux aussi à ce niveau (échantillon « boule de neige »)."""
@@ -517,7 +605,7 @@ def run(args):
         cache = chess_analysis.analyse_games(targets, ANALYSIS_CACHE, depth=args.depth, workers=args.workers)
 
     analysable_links = {r["lien"] for r in analysable}
-    moments = []
+    moments, studies = [], []
     for idx, r in enumerate(rows):
         r["sf"] = None
         a = cache.get(r["lien"])
@@ -530,9 +618,19 @@ def run(args):
             for m in game_moments:
                 m["g"] = idx
                 moments.append(m)
+            try:
+                studies += [{**s, "g": idx} for s in chess_analysis.study_positions(r, pgns[r["lien"]], a)]
+            except Exception as exc:
+                print(f"Positions d'étude impossibles pour {r['lien']} : {exc}")
     analysed = sum(r["sf"] is not None for r in rows)
     repertoire = opening_repertoire(rows, pgns, cache)
     objective = None if not analysed else build_objective(args, rows, lichess, cache)
+    if analysed:
+        # l'objectif a pu analyser de nouvelles parties : on relit le cache pour les y trouver
+        others = stronger_studies(rows, lichess, cache if args.no_analysis else chess_analysis.load_cache(ANALYSIS_CACHE))
+        classical = classical_studies(args)
+        print(f"Positions d'étude : {len(studies)} de tes parties, {len(others)} de joueurs plus forts, {len(classical)} de parties longues")
+        studies += others + classical
 
     # --- CSV
     csv_path = None if args.publier else out_dir / "chess_games.csv"   # rien en clair dans la version publiée
@@ -561,7 +659,7 @@ def run(args):
                        "tps": chess_analysis.TIME_BUCKETS, "t15": chess_analysis.TIME_CHECK_MOVE},
         "site": "lichess" if lichess else "chesscom",
         "games": [{k: v for k, v in r.items() if k != "rules"} for r in rows],
-        "moments": moments, "repertoire": repertoire, "objectif": objective,
+        "moments": moments, "repertoire": repertoire, "objectif": objective, "etudes": studies,
     }
     home = "" if args.publier else '<a href="../index.html" class="muted" style="font-size:13px">← Tous les joueurs</a>'
     page = (dashboard_page().replace("__SITE__", site_label).replace("__HOME__", home)
@@ -643,7 +741,7 @@ def template(name):
     return (TEMPLATES_DIR / name).read_text(encoding="utf-8")
 
 # Code du tableau de bord, un fichier par fonctionnalité, réunis dans un seul <script> (l'ordre compte : demarrage.js en dernier)
-DASHBOARD_SCRIPTS = ["base.js", "comportement.js", "entrainement.js", "moteur.js", "repertoire.js", "objectif.js", "adversaire.js", "synchro.js", "demarrage.js"]
+DASHBOARD_SCRIPTS = ["base.js", "comportement.js", "entrainement.js", "etude.js", "moteur.js", "repertoire.js", "objectif.js", "adversaire.js", "synchro.js", "demarrage.js"]
 
 def dashboard_page():
     return template("dashboard.html").replace("__SCRIPT__", "\n".join(template(f"js/{name}") for name in DASHBOARD_SCRIPTS))

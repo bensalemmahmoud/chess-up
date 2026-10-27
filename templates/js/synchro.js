@@ -21,6 +21,6 @@ $('syncBtn').addEventListener('click',async()=>{$('syncMsg').textContent='';
  catch(e){$('syncMsg').textContent='Ce navigateur ne permet pas la synchronisation.'}});
 
 async function handleSyncHash(){const code=location.hash.slice(6);history.replaceState(null,'','#entrainement');
- try{const n=await importSync(code);renderTraining(baseFilter(false));
+ try{const n=await importSync(code);renderTraining(baseFilter(false));renderStudy(baseFilter(false));setMode('coup');
   setFeedback('ok',`<b>Progression synchronisée :</b> ${n} position${n>1?'s':''} mise${n>1?'s':''} à jour depuis ton autre appareil.`)}
  catch(e){setFeedback('ko','Lien de synchronisation illisible : recrée-le sur l\'autre appareil.')}}

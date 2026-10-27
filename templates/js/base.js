@@ -110,7 +110,7 @@ function render(){const G=baseFilter(false),GA=baseFilter(true);const sc=score(G
  const months=[...new Set(G.map(g=>g.mois))].sort();const bm=months.map(m=>score(G.filter(g=>g.mois===m)));
  chart('monthlyChart',{type:'bar',data:{labels:months,datasets:[{label:'Victoires',data:bm.map(x=>x.w),backgroundColor:'#199e70',borderRadius:4},{label:'Nulles',data:bm.map(x=>x.d),backgroundColor:'#c98500',borderRadius:4},{label:'Défaites',data:bm.map(x=>x.l),backgroundColor:'#e66767',borderRadius:4}]},options:barOpts({scales:{x:{stacked:true},y:{stacked:true,beginAtZero:true}}})});
 
- renderOpenings(G);renderRepertoire(G);renderSF(G,GA);renderProgress(G);renderTraining(G);renderInsights(G,GA);renderBehaviour(G);renderGames(G)}
+ renderOpenings(G);renderRepertoire(G);renderSF(G,GA);renderProgress(G);renderTraining(G);renderStudy(G);renderInsights(G,GA);renderBehaviour(G);renderGames(G)}
 
 /* ---------- ouvertures ---------- */
 let oSort={k:'n',dir:-1};

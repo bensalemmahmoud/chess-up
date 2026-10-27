@@ -157,6 +157,101 @@ class Motifs(unittest.TestCase):
         self.assertFalse(ca.pins(board, chess.Move.from_uci("f1c4")))
 
 
+class PositionFeatures(unittest.TestCase):
+    def feats(self, fen):
+        return ca.position_features(chess.Board(fen))
+
+    def test_isolated_pawn_against_an_outpost(self):
+        f = self.feats("r2q1rk1/1b3ppp/p3pn2/1p1n4/3P4/P1NB1N2/1P3PPP/R2Q1RK1 w - - 0 15")
+        self.assertEqual(f["w"]["isoles"], ["d4"])
+        self.assertEqual(f["b"]["avant_poste"], ["d5"])
+        self.assertNotIn("passes", f["w"])   # le pion e6 surveille sa route
+
+    def test_doubled_and_passed_pawns(self):
+        f = self.feats("4k3/p7/8/8/8/2P5/2P5/4K3 w - - 0 1")
+        self.assertEqual(sorted(f["w"]["doubles"]), ["c2", "c3"])
+        self.assertEqual(sorted(f["w"]["passes"]), ["c2", "c3"])
+        self.assertEqual(f["b"]["passes"], ["a7"])
+
+    def test_backward_pawn_open_file_and_hanging_rooks(self):
+        f = self.feats("2r3k1/p4ppp/1p2p3/3nP3/3P4/P4N2/1P3PPP/2R3K1 b - - 0 25")
+        self.assertEqual(f["w"]["arrieres"], ["d4"])
+        self.assertEqual(f["w"]["colonne"], ["c1"])
+        self.assertEqual(f["b"]["en_prise"], ["c8"])   # face à face sur la colonne, sans défenseur
+
+    def test_piece_attacked_by_a_pawn(self):
+        self.assertEqual(self.feats("4k3/8/8/3n4/4P3/8/8/4K3 w - - 0 1")["b"]["en_prise"], ["d5"])
+
+    def test_pinned_defender_does_not_defend(self):
+        # le cavalier e5, attaqué par la tour e1, n'est défendu que par la dame d6, clouée sur la colonne d
+        self.assertEqual(self.feats("3k4/8/3q4/4n3/8/8/8/3RRK2 w - - 0 1")["b"].get("en_prise"), ["e5", "d6"])   # et la dame clouée
+        self.assertNotIn("en_prise", self.feats("3k4/8/3q4/4n3/8/8/8/R3RK2 w - - 0 1")["b"])
+
+    def test_isolated_rook_pawn_is_ignored(self):
+        self.assertNotIn("isoles", self.feats("4k3/8/8/8/8/8/P7/4K3 w - - 0 1")["w"])
+
+    def test_context_from_the_players_side(self):
+        board = chess.Board("r2q1rk1/1b3ppp/p3pn2/1p1n4/3P4/P1NB1N2/1P3PPP/R2Q1RK1 w - - 0 15")
+        self.assertEqual(sorted(ca.position_context(board, chess.WHITE)), ["adv_avant_poste", "moi_isoles"])
+        self.assertEqual(sorted(ca.position_context(board, chess.BLACK)), ["adv_isoles", "moi_avant_poste"])
+
+    def test_king_safety(self):
+        f = self.feats("rn1q1rk1/5p2/8/8/8/8/5PPP/RN1Q1RK1 w - - 0 25")
+        self.assertIn("roi_ouvert", f["b"])
+        self.assertNotIn("roi_ouvert", f["w"])
+        f = self.feats("r2qk2r/ppp2ppp/8/8/8/8/PPP2PPP/R2QK2R w KQkq - 0 15")
+        self.assertEqual(f["w"]["roi_centre"], ["e1"])
+        self.assertEqual(f["b"]["roi_centre"], ["e8"])
+
+    def test_active_king_and_bishop_pair_in_the_endgame(self):
+        f = self.feats("4k3/8/8/8/4K3/8/8/2B2B2 w - - 0 40")
+        self.assertEqual(f["w"]["roi_actif"], ["e4"])
+        self.assertEqual(sorted(f["w"]["paire_fous"]), ["c1", "f1"])
+        self.assertNotIn("roi_actif", f["b"])
+
+
+class StudyPositions(unittest.TestCase):
+    # Pion isolé d4 contre cavalier en avant-poste d5 : 15. Qe2 Rc8 16. Rfd1 Qb6 17. Rac1 Rfd8 18. h3 h6
+    PGN = '[FEN "r2q1rk1/1b3ppp/p3pn2/1p1n4/3P4/P1NB1N2/1P3PPP/R2Q1RK1 w - - 0 15"]\n\n15. Qe2 Rc8 16. Rfd1 Qb6 17. Rac1 Rfd8 18. h3 h6 *'
+    BEST = ["d1e2", "a8c8", "f1d1", "d8b6", "a1c1", "f8d8", "h2h3", "h7h6", ""]
+
+    def study(self, evals, best=BEST, color="Blancs"):
+        return ca.study_positions(row(color), self.PGN, {"v": ca.CACHE_VERSION, "d": 14, "e": evals, "b": best})
+
+    def test_one_middlegame_position_for_the_player(self):
+        positions = self.study([30] * 9)
+        self.assertEqual(len(positions), 1)
+        p = positions[0]
+        # après 15...Rc8, la tour noire tient la colonne c ouverte : la position la plus riche est retenue
+        # (17. Rac1 en a autant, mais la première l'emporte ; 18. h3 n'a pas assez de suite pour juger le calme)
+        self.assertEqual((p["ply"], p["best"], p["ph"], p["n"]), (2, "Rfd1", "milieu", "16."))
+        self.assertEqual(p["f"]["w"]["isoles"], ["d4"])
+        self.assertEqual(p["f"]["b"]["colonne"], ["c8"])
+
+    def test_capture_as_best_move_is_not_calm(self):
+        best = self.BEST[:2] + ["c3d5"] + self.BEST[3:4] + ["c3d5"] + self.BEST[5:]
+        self.assertEqual([p["ply"] for p in self.study([30] * 9, best)], [0])
+
+    def test_unstable_evaluation_is_not_calm(self):
+        # l'évaluation s'effondre deux demi-coups après la position 2 et la position 4 : une tactique s'y cachait
+        self.assertEqual(self.study([30, 30, 30, 30, -600, -600, -600, -600, -600]), [])
+        self.assertEqual([p["ply"] for p in self.study([30, 30, 30, 30, 30, 30, 30, 30, -300])], [2])
+
+    def test_error_context(self):
+        # 16. Rfd1 fait chuter l'évaluation : une erreur commise avec un pion isolé, face à un avant-poste
+        analysis = {"v": ca.CACHE_VERSION, "d": 14, "e": [30, 30, 30, -300, -300, -300, -300, -300, -300], "b": self.BEST}
+        metrics, moments = ca.game_metrics(row("Blancs"), self.PGN, analysis)
+        self.assertEqual(metrics["ctx"]["coups"]["moi_isoles"], 4)
+        self.assertEqual(metrics["ctx"]["err"], {"moi_isoles": 1, "adv_avant_poste": 1, "adv_colonne": 1})
+        self.assertEqual(sorted(moments[0]["ctx"]), ["adv_avant_poste", "adv_colonne", "moi_isoles"])
+
+    def test_decided_positions_are_skipped(self):
+        self.assertEqual(self.study([900] * 9), [])
+
+    def test_too_early_in_the_game(self):
+        self.assertEqual(ca.study_positions(row("Noirs"), SCHOLAR_PGN, SCHOLAR_ANALYSIS), [])
+
+
 class OpeningPositions(unittest.TestCase):
     def test_only_the_players_turns(self):
         positions = ca.opening_positions(row("Noirs"), SCHOLAR_PGN, SCHOLAR_ANALYSIS)

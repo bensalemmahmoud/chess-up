@@ -313,6 +313,172 @@ def motifs(board, move, best_uci, reply_uci, before, after):
     return out
 
 
+# ---------------------------------------------------------------- éléments de la position (exercices d'étude)
+# Règles simples, calculées pour chaque camp : des pistes pour évaluer une position, pas des verdicts.
+# Chaque élément présent donne la liste des cases concernées (surlignées dans l'explication).
+
+STUDY_START_PLY = 16    # positions d'étude : à partir du 9e coup des Blancs (ouverture jouée)
+STUDY_MAX_EVAL = 400    # au-delà de ±4, la position est déjà décidée : il n'y a plus grand-chose à évaluer
+STUDY_MIN_FEATURES = 2  # une position d'étude doit présenter au moins ce nombre d'éléments
+STUDY_STABLE_PLIES = 4  # position calme : l'évaluation ne bouge presque pas pendant les demi-coups suivants...
+STUDY_STABLE_WIN = 8    # ... au plus ce nombre de points de chances de gain d'écart (pas de tactique cachée)
+MOBILITY_RATIO = 1.3    # « pièces plus actives » : au moins 30 % de cases accessibles en plus...
+MOBILITY_GAP = 6        # ... et au moins 6 cases d'écart
+
+
+def _rel_rank(sq, color):
+    """Rangée vue du camp color (0 = sa première rangée)."""
+    return chess.square_rank(sq) if color == chess.WHITE else 7 - chess.square_rank(sq)
+
+
+def _front(sq, color):
+    return sq + 8 if color == chess.WHITE else sq - 8
+
+
+def pawn_structure(board, color):
+    mine, theirs = board.pieces(chess.PAWN, color), board.pieces(chess.PAWN, not color)
+    files = [chess.square_file(s) for s in mine]
+    out = {"isoles": [], "doubles": [], "arrieres": [], "passes": []}
+    for sq in mine:
+        f, r = chess.square_file(sq), _rel_rank(sq, color)
+        neighbours = [s for s in mine if abs(chess.square_file(s) - f) == 1]
+        if not neighbours and 0 < f < 7:   # un pion de tour isolé est rarement une vraie faiblesse
+            out["isoles"].append(sq)
+        if files.count(f) > 1:
+            out["doubles"].append(sq)
+        if not any(abs(chess.square_file(s) - f) <= 1 and _rel_rank(s, color) > r for s in theirs):
+            out["passes"].append(sq)
+        # arriéré : ses voisins sont tous plus avancés (plus aucun pion pour le protéger), la case devant lui
+        # est tenue par un pion adverse, et sa colonne est semi-ouverte pour l'adversaire
+        elif (neighbours and all(_rel_rank(s, color) > r for s in neighbours)
+              and not any(chess.square_file(s) == f for s in theirs)
+              and 0 <= _front(sq, color) < 64 and board.attackers(not color, _front(sq, color)) & theirs):
+            out["arrieres"].append(sq)
+    return out
+
+
+def hanging_pieces(board, color):
+    """Pièces (hors pions et roi) attaquées et non défendues, ou attaquées par une pièce de moindre valeur.
+    Une pièce clouée sur son roi ne compte ni pour attaquer ni pour défendre, sauf le long du clouage."""
+    out = []
+    for pt in (chess.KNIGHT, chess.BISHOP, chess.ROOK, chess.QUEEN):
+        for sq in board.pieces(pt, color):
+            free = lambda side, a: sq in board.pin(side, a)
+            attackers = [a for a in board.attackers(not color, sq) if free(not color, a)]
+            defenders = [d for d in board.attackers(color, sq) if free(color, d)]
+            if attackers and (not defenders or min(VALUE[board.piece_type_at(a)] or 99 for a in attackers) < VALUE[pt]):
+                out.append(sq)
+    return out
+
+
+def king_features(board, color, endgame):
+    k = board.king(color)
+    if k is None:
+        return {}
+    f, r = chess.square_file(k), _rel_rank(k, color)
+    if endgame:   # en finale, le roi doit être actif : centralisé (colonnes c à f, rangées 3 à 6)
+        return {"roi_actif": [k]} if 2 <= f <= 5 and 2 <= r <= 5 else {}
+    if not board.pieces(chess.QUEEN, not color) or r > 1:
+        return {}
+    pawns = board.pieces(chess.PAWN, color)
+    # roi resté au centre alors qu'une colonne centrale (d ou e) n'a plus de pion de son camp
+    if r == 0 and f in (3, 4, 5) and any(not any(chess.square_file(p) == cf for p in pawns) for cf in (3, 4)):
+        return {"roi_centre": [k]}
+    step = 1 if color == chess.WHITE else -1
+    files = range(max(0, f - 1), min(7, f + 1) + 1)
+    shield = [chess.square(sf, chess.square_rank(k) + d * step) for sf in files for d in (1, 2)]
+    if sum(1 for s in shield if s in pawns) <= 1:   # abri de pions détruit, avec la dame adverse sur l'échiquier
+        return {"roi_ouvert": [k] + [chess.square(sf, chess.square_rank(k) + step) for sf in files]}
+    return {}
+
+
+def mobility(board, color):
+    return sum(len(board.attacks(sq) & ~board.occupied_co[color])
+               for pt in (chess.KNIGHT, chess.BISHOP, chess.ROOK, chess.QUEEN) for sq in board.pieces(pt, color))
+
+
+def piece_features(board, color):
+    out = {}
+    pawns, their_pawns = board.pieces(chess.PAWN, color), board.pieces(chess.PAWN, not color)
+    open_files = {f for f in range(8) if not any(chess.square_file(p) == f for p in board.pieces(chess.PAWN, chess.WHITE) | board.pieces(chess.PAWN, chess.BLACK))}
+    rooks = [s for s in board.pieces(chess.ROOK, color) if chess.square_file(s) in open_files]
+    if rooks:
+        out["colonne"] = rooks
+    colour = lambda sq: (chess.square_file(sq) + chess.square_rank(sq)) % 2
+    bishops = list(board.pieces(chess.BISHOP, color))
+    their_bishops = board.pieces(chess.BISHOP, not color)
+    if len({colour(b) for b in bishops}) == 2 and len({colour(b) for b in their_bishops}) < 2:
+        out["paire_fous"] = bishops
+    for b in bishops:   # mauvais fou : au moins 4 de ses pions sur sa couleur, dont 2 bloqués par un pion adverse
+        same = [p for p in pawns if colour(p) == colour(b)]
+        blocked = [p for p in same if 0 <= _front(p, color) < 64 and _front(p, color) in their_pawns]
+        if len(same) >= 4 and len(blocked) >= 2:
+            out.setdefault("mauvais_fou", []).extend([b] + same)
+    for n in board.pieces(chess.KNIGHT, color):   # avant-poste : soutenu par un pion, aucun pion adverse ne peut le chasser
+        f, r = chess.square_file(n), _rel_rank(n, color)
+        if (3 <= r <= 5 and board.attackers(color, n) & pawns
+                and not any(abs(chess.square_file(p) - f) == 1 and _rel_rank(p, color) > r for p in their_pawns)):
+            out.setdefault("avant_poste", []).append(n)
+    return out
+
+
+def position_features(board):
+    """Éléments de la position pour chaque camp : {"w": {élément: [cases]}, "b": {...}, "mob": [Blancs, Noirs],
+    "mat": [Blancs, Noirs]} (mobilité = cases accessibles aux pièces, matériel en points)."""
+    endgame = phase_of(board) == "finale"
+    mob = {c: mobility(board, c) for c in chess.COLORS}
+    out = {"mob": [mob[chess.WHITE], mob[chess.BLACK]],
+           "mat": [sum(len(board.pieces(pt, c)) * v for pt, v in VALUE.items()) for c in (chess.WHITE, chess.BLACK)]}
+    for c, key in ((chess.WHITE, "w"), (chess.BLACK, "b")):
+        f = {k: v for k, v in pawn_structure(board, c).items() if v}
+        hanging = hanging_pieces(board, c)
+        if hanging:
+            f["en_prise"] = hanging
+        f.update(king_features(board, c, endgame))
+        f.update(piece_features(board, c))
+        if mob[c] >= MOBILITY_RATIO * mob[not c] and mob[c] - mob[not c] >= MOBILITY_GAP:
+            f["mobilite"] = [s for pt in (chess.KNIGHT, chess.BISHOP, chess.ROOK, chess.QUEEN) for s in board.pieces(pt, c)]
+        out[key] = {k: [chess.square_name(s) for s in v] for k, v in f.items()}
+    return out
+
+
+def position_context(board, color):
+    """Éléments de la position vus du camp color : « moi_<élément> » pour les siens, « adv_<élément> » pour l'adversaire."""
+    f = position_features(board)
+    me, opp = ("w", "b") if color == chess.WHITE else ("b", "w")
+    return ["moi_" + k for k in f[me]] + ["adv_" + k for k in f[opp]]
+
+
+def study_positions(row, pgn, analysis):
+    """Positions calmes où le joueur a le trait, pour les exercices d'étude : au plus une en milieu de partie et une
+    en finale, celle qui présente le plus d'éléments. Calme : pas d'échec, le coup précédent n'est pas une prise
+    (pas de reprise en attente), le meilleur coup n'en est pas une, et l'évaluation reste stable pendant les
+    STUDY_STABLE_PLIES demi-coups suivants : elle vient alors de la structure et des pièces, pas d'une tactique.
+    Position pas encore décidée."""
+    game = chess.pgn.read_game(io.StringIO(pgn))
+    me = chess.WHITE if row["couleur"] == "Blancs" else chess.BLACK
+    evals, best = analysis["e"], analysis["b"]
+    chosen = {}
+    board = game.board()
+    prev_capture = False
+    for ply, node in enumerate(game.mainline()):
+        move = node.move
+        if (board.ply() >= STUDY_START_PLY and board.turn == me and ply + STUDY_STABLE_PLIES < len(evals)
+                and abs(evals[ply]) <= STUDY_MAX_EVAL and not prev_capture and not board.is_check()
+                and all(abs(win_pct(evals[ply + k]) - win_pct(evals[ply])) <= STUDY_STABLE_WIN for k in range(1, STUDY_STABLE_PLIES + 1))):
+            bm = chess.Move.from_uci(best[ply]) if ply < len(best) and best[ply] else None
+            ph = phase_of(board)
+            if bm and bm in board.legal_moves and not board.is_capture(bm) and ph != "ouverture":
+                feats = position_features(board)
+                n = sum(len(feats[k]) for k in ("w", "b"))
+                if n >= STUDY_MIN_FEATURES and n > chosen.get(ph, {}).get("_n", 0):
+                    chosen[ph] = {"_n": n, "ply": ply, "fen": board.fen(), "e": evals[ply], "ph": ph, "best": board.san(bm), "jo": board.san(move),
+                                  "n": f"{board.fullmove_number}{'.' if board.turn == chess.WHITE else '...'}", "f": feats}
+        prev_capture = board.is_capture(move)
+        board.push(move)
+    return [{k: v for k, v in s.items() if k != "_n"} for s in chosen.values()]
+
+
 def game_metrics(row, pgn, analysis):
     """Renvoie (métriques de la partie, liste des moments critiques) du point de vue du joueur."""
     game = chess.pgn.read_game(io.StringIO(pgn))
@@ -331,6 +497,8 @@ def game_metrics(row, pgn, analysis):
     # coups joués et erreurs (erreurs + gaffes) selon le temps de réflexion (TIME_BUCKETS)
     times = {"coups": [0] * (len(TIME_BUCKETS) + 1), "err": [0] * (len(TIME_BUCKETS) + 1)}
     cpl, accs, moments = [], [], []
+    # contexte : éléments de la position (« moi_… » / « adv_… ») à chacun de tes coups hors ouverture, et à tes erreurs
+    context = {"coups": {}, "err": {}}
     zeit_err = missed_opp = missed_mate = own_moves = 0
     decisive = time_used = None
     prev_clock = base
@@ -371,6 +539,11 @@ def game_metrics(row, pgn, analysis):
                 bucket = sum(spent >= budget * t for t in TIME_BUCKETS)
                 times["coups"][bucket] += 1
                 times["err"][bucket] += sev in ("err", "gaf")
+            ctx = position_context(board, me) if ph != "ouverture" else []
+            for k in ctx:
+                context["coups"][k] = context["coups"].get(k, 0) + 1
+                if sev in ("err", "gaf"):
+                    context["err"][k] = context["err"].get(k, 0) + 1
             if sev in ("err", "gaf"):
                 zeit_err += zeit
                 missed_opp += opp_gift
@@ -392,7 +565,7 @@ def game_metrics(row, pgn, analysis):
                     "wb": round(wb), "wa": round(wa), "ph": ph, "zt": zeit,
                     "sev": sev or "mat", "occ": bool(opp_gift and sev), "mm": mate_missed,
                     "clk": round(clock) if clock is not None else None, "alts": alts,
-                    "t": None if spent is None else round(spent), "tb": bucket, "ft": ft,
+                    "t": None if spent is None else round(spent), "tb": bucket, "ft": ft, "ctx": ctx,
                     "mot": motifs(board, move, best[ply], best[ply + 1] if ply + 1 < len(best) else "", before, after),
                 })
             if loss >= MISTAKE and (decisive is None or loss > decisive["loss"]):
@@ -410,7 +583,7 @@ def game_metrics(row, pgn, analysis):
         "max_win": round(max(my_wins)) if my_wins else None,
         "min_win": round(min(my_wins)) if my_wins else None,
         "tps": times if budget and sum(times["coups"]) else None,
-        "t15": time_used, "finale": endgame,
+        "t15": time_used, "finale": endgame, "ctx": context,
         "eval_ouv": None if opening_eval is None else round(max(-1000, min(1000, opening_eval))),
         "decisive": decisive,
     }
