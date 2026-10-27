@@ -11,10 +11,11 @@
 #   python chess_dashboard_generator.py --since 2026-01         # période analysée (défaut : les 6 derniers mois)
 #   python chess_dashboard_generator.py --no-analysis           # statistiques seules, sans moteur
 
-import argparse, base64, csv, gzip, hashlib, html, json, os, re, secrets, shlex, shutil, sys, time
+import argparse, base64, csv, gzip, hashlib, html, io, json, os, re, secrets, shlex, shutil, sys, time
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
+import chess, chess.pgn
 import requests
 
 import chess_analysis
@@ -39,6 +40,8 @@ STUDY_OTHERS_MAX = 300     # positions d'étude tirées des parties de joueurs p
 CLASSICAL_CACHE = CACHE_DIR / "classiques.json"   # parties longues de joueurs forts, partagées par tous les rapports
 CLASSICAL_PLAYERS = 12     # joueurs du haut du classement Lichess en cadence classique...
 CLASSICAL_GAMES = 6        # ... et parties récentes de chacun
+OPENINGS_CACHE = CACHE_DIR / "ouvertures.json"   # noms d'ouvertures Lichess, pour les exports PGN qui n'en ont pas
+OPENINGS_URL = "https://raw.githubusercontent.com/lichess-org/chess-openings/master/{}.tsv"
 MONTHS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août",
              "septembre", "octobre", "novembre", "décembre"]
 USERNAME = DEFAULT_USERNAME              # remplacé par --user dans main()
@@ -276,6 +279,86 @@ def lichess_row(game):
         "ts": ts // 1000 if ts else "",
     }
 
+# ---------------------------------------------------------------- Export PGN Lichess (--pgn)
+
+def opening_names():
+    """{position (EPD) : (ECO, nom)} d'après la base d'ouvertures de Lichess, mise en cache. Comme sur Lichess,
+    c'est la position qui compte : une transposition reçoit le nom de l'ouverture atteinte."""
+    try:
+        return {k: tuple(v) for k, v in json.loads(OPENINGS_CACHE.read_text(encoding="utf-8")).items()}
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+    names = {}
+    for part in "abcde":
+        response = SESSION.get(OPENINGS_URL.format(part), timeout=60)
+        response.raise_for_status()
+        for line in response.text.splitlines()[1:]:
+            eco, name, moves = line.split("	")
+            board = chess.Board()
+            for san in first_moves(moves, 10_000).split():
+                board.push_san(san)
+            names[board.epd()] = (eco, name)
+    OPENINGS_CACHE.parent.mkdir(exist_ok=True)
+    OPENINGS_CACHE.write_text(json.dumps(names), encoding="utf-8")
+    return names
+
+def lichess_speed(initial, increment):
+    """Cadence Lichess : durée estimée d'une partie = temps initial + 40 incréments."""
+    total = initial + 40 * increment
+    for limit, speed in ((30, "ultraBullet"), (180, "bullet"), (480, "blitz"), (1500, "rapid")):
+        if total < limit:
+            return speed
+    return "classical"
+
+def pgn_game(game, names):
+    """Partie python-chess d'un export PGN Lichess -> dict au format de l'API Lichess (lu par lichess_row()).
+    L'export n'a ni nom d'ouverture (celui de la dernière position connue des 40 premiers demi-coups) ni heure
+    de fin (on prend l'heure de début)."""
+    h = game.headers
+    board, sans, opening = game.board(), [], {}
+    for move in game.mainline_moves():
+        sans.append(board.san(move))
+        board.push(move)
+        if len(sans) <= 40 and board.epd() in names:
+            opening = dict(zip(("eco", "name"), names[board.epd()]))
+    result, termination = h.get("Result"), h.get("Termination", "")
+    if termination == "Time forfeit":
+        status = "outoftime"
+    elif termination == "Abandoned":
+        status = "timeout"
+    elif board.is_checkmate():
+        status = "mate"
+    elif board.is_stalemate():
+        status = "stalemate"
+    else:
+        status = "draw" if result == "1/2-1/2" else "resign"
+    start = datetime.strptime(f"{h.get('UTCDate')} {h.get('UTCTime')}", "%Y.%m.%d %H:%M:%S").replace(tzinfo=timezone.utc)
+    game_id = h.get("GameId") or h.get("Site", "").rsplit("/", 1)[-1]
+    players = {}
+    for color in ("White", "Black"):
+        rating = h.get(f"{color}Elo", "")
+        players[color.lower()] = {"user": {"id": h.get(color, "").lower(), "name": h.get(color, "")},
+                                  "rating": int(rating) if rating.isdigit() else ""}
+    clock = re.fullmatch(r"(\d+)\+(\d+)", h.get("TimeControl", ""))
+    variant = h.get("Variant", "Standard").lower()
+    return {
+        "id": game_id, "rated": "casual" not in h.get("Event", "").lower(),
+        "variant": "standard" if variant == "standard" else variant,
+        "speed": lichess_speed(int(clock.group(1)), int(clock.group(2))) if clock else "correspondence",
+        "status": status, "winner": {"1-0": "white", "0-1": "black"}.get(result),
+        "createdAt": int(start.timestamp() * 1000),
+        "clock": {"initial": int(clock.group(1)), "increment": int(clock.group(2))} if clock else None,
+        "opening": opening, "players": players, "moves": " ".join(sans),
+        "pgn": str(game),
+    }
+
+def pgn_file_games(path):
+    names = opening_names()
+    games, text = [], io.StringIO(Path(path).read_text(encoding="utf-8-sig"))
+    while (game := chess.pgn.read_game(text)) is not None:
+        games.append(pgn_game(game, names))
+    return games
+
 def default_since():
     now = datetime.now()
     total = now.year * 12 + now.month - 1 - (DEFAULT_MONTHS - 1)
@@ -315,7 +398,10 @@ def fetch_chesscom(args):
 def fetch_lichess_rows(args):
     print(f"Récupération des parties Lichess de {USERNAME}...")
     since_ms = int(datetime(args.since[0], args.since[1], 1, tzinfo=timezone.utc).timestamp() * 1000)
-    games = fetch_lichess(since_ms, args.refresh)
+    if args.pgn:   # compte fermé : l'API ne donne plus ses parties, mais un export PGN les contient
+        games = [g for g in pgn_file_games(BASE_DIR / args.pgn) if g["createdAt"] >= since_ms]
+    else:
+        games = fetch_lichess(since_ms, args.refresh)
     games = [g for g in games if g.get("moves")]   # parties annulées avant le premier coup
     if not games:
         sys.exit(f"Aucune partie depuis {args.since[0]}-{args.since[1]:02d} pour {USERNAME}. Essaie une date --since plus ancienne.")
@@ -333,6 +419,8 @@ def build_parser():
     parser.add_argument("--depth", type=int, default=14, help="profondeur d'analyse Stockfish (défaut : 14)")
     parser.add_argument("--workers", type=int, default=None, help="nombre de moteurs en parallèle (défaut : nb de cœurs - 2)")
     parser.add_argument("--no-analysis", action="store_true", help="ne pas lancer Stockfish (le cache existant reste utilisé)")
+    parser.add_argument("--pgn", metavar="FICHIER",
+                        help="avec --site lichess : lit les parties dans cet export PGN Lichess au lieu de l'API (compte fermé)")
     parser.add_argument("--refresh", action="store_true", help="re-télécharger aussi les parties déjà en cache")
     parser.add_argument("--amis", metavar="FICHIER",
                         help="génère le rapport de chaque joueur listé dans FICHIER (une ligne d'options par joueur), puis la page d'accueil rapports/index.html")

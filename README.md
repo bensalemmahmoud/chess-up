@@ -44,6 +44,14 @@ python chess_dashboard_generator.py --site lichess --user ton_identifiant
 
 Le rapport est alors créé dans `rapports/lichess_ton_identifiant/`. Les cadences Lichess sont `ultraBullet`, `bullet`, `blitz`, `rapid`, `classical` et `correspondence`. La précision Lichess n'est disponible que pour les parties que tu as fait analyser sur le site.
 
+Si le compte Lichess a été **fermé**, l'API ne donne plus ses parties. Exporte-les en PGN (bouton « Exporter les parties » du profil, ou un fichier envoyé par le joueur), place le fichier dans `pgn/` et ajoute `--pgn` :
+
+```
+python chess_dashboard_generator.py --site lichess --user ancien_pseudo --pgn pgn/lichess_ancien_pseudo.pgn --since 2017-01 --cadences all
+```
+
+Le fichier est envoyé sur GitHub avec le projet, pour que le site publié puisse le relire. Comme l'export ne contient pas le nom des ouvertures, il est retrouvé d'après la position (base d'ouvertures de Lichess).
+
 Par défaut, le script prend **les 6 derniers mois** et analyse avec Stockfish **les parties rapid** uniquement. Les statistiques de résultats couvrent toutes les cadences.
 
 ### Options
@@ -58,6 +66,7 @@ Par défaut, le script prend **les 6 derniers mois** et analyse avec Stockfish *
 | `--workers` | nombre de moteurs en parallèle (défaut : nombre de cœurs − 2) | `--workers 4` |
 | `--no-analysis` | ne lance pas Stockfish ; utilise seulement les analyses déjà faites | |
 | `--refresh` | re-télécharge aussi les parties déjà en cache | |
+| `--pgn` | avec `--site lichess` : lit les parties dans un export PGN au lieu de l'API (compte fermé) | `--pgn pgn/lichess_bob.pgn` |
 
 ### Combien de temps ça prend ?
 

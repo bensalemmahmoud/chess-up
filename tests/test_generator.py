@@ -177,6 +177,52 @@ class LichessRow(unittest.TestCase):
         self.assertEqual(gen.lichess_row(self.GAME)["resultat"], "Défaite")
 
 
+class PgnExport(unittest.TestCase):
+    PGN = """[Event "Casual rapid game"]
+[Site "https://lichess.org/abcd1234"]
+[White "Alice"]
+[Black "Bob"]
+[Result "0-1"]
+[GameId "abcd1234"]
+[UTCDate "2020.06.21"]
+[UTCTime "17:56:03"]
+[WhiteElo "1500"]
+[BlackElo "1600"]
+[Variant "Standard"]
+[TimeControl "600+5"]
+[Termination "Normal"]
+
+1. f3 e5 2. g4 Qh4# 0-1
+"""
+
+    def setUp(self):
+        self.saved = gen.USERNAME
+
+    def tearDown(self):
+        gen.USERNAME = self.saved
+
+    def game(self):
+        import chess, io
+        board = chess.Board()
+        board.push_san("f3")
+        names = {board.epd(): ("A00", "Barnes Opening")}
+        return gen.pgn_game(chess.pgn.read_game(io.StringIO(self.PGN)), names)
+
+    def test_same_row_as_the_api(self):
+        gen.USERNAME = "bob"
+        r = gen.lichess_row(self.game())
+        self.assertEqual((r["couleur"], r["resultat"], r["adversaire"]), ("Noirs", "Victoire", "Alice"))
+        self.assertEqual((r["elo_joueur"], r["elo_adversaire"]), (1600, 1500))
+        self.assertEqual((r["time_control"], r["fin"], r["cadence"], r["rated"]), ("600+5", "checkmated", "rapid", False))
+        self.assertEqual((r["ouverture"], r["ECO"]), ("Barnes Opening", "A00"))
+        self.assertEqual((r["lien"], r["coups"]), ("https://lichess.org/abcd1234", "f3 e5 g4 Qh4#"))
+        self.assertEqual(r["ts"], 1592762163)   # début de la partie : l'export n'a pas l'heure de fin
+
+    def test_speed(self):
+        self.assertEqual([gen.lichess_speed(*tc) for tc in ((60, 0), (180, 0), (180, 2), (900, 15), (3600, 10))],
+                         ["bullet", "blitz", "blitz", "classical", "classical"])
+
+
 class AmisFile(unittest.TestCase):
     def test_line_options(self):
         line = "--site lichess --user Bob --since 2026-01 --cadences blitz --mot-de-passe abcde-fghij"
