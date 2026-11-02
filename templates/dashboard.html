@@ -49,12 +49,16 @@ select.select{background:var(--panel2);color:var(--text);border:1px solid var(--
 .pc{position:relative;z-index:1}.pc.w{color:#fff;text-shadow:0 0 2px #000,0 0 1px #000,0 1px 2px #000}.pc.b{color:#111}
 .coord{position:absolute;font-size:2.4cqw;font-weight:700;color:#10151d;opacity:.6}.coord.f{right:3px;bottom:1px}.coord.r{left:3px;top:1px}
 .tpanel h3{font-size:18px;margin:4px 0 8px}.tpanel p{margin:6px 0}.feedback{min-height:48px;margin:12px 0;padding:10px 12px;border-radius:8px;background:var(--panel2);font-size:14px}
-.modes{display:inline-flex;max-width:100%;gap:3px;padding:3px;margin-bottom:14px;background:var(--panel2);border:1px solid var(--line);border-radius:10px}
+.modes{display:inline-flex;flex-wrap:wrap;max-width:100%;gap:3px;padding:3px;margin-bottom:14px;background:var(--panel2);border:1px solid var(--line);border-radius:10px}
 .modes button{background:none;border:0;color:var(--muted);padding:8px 14px;border-radius:8px;font:inherit;font-size:14px;font-weight:600;cursor:pointer}.modes button.active{background:var(--c1);color:#fff}
 .sq.zone{box-shadow:inset 0 0 0 4px #d95926,inset 0 0 0 100px rgba(217,89,38,.3)}.choices button{cursor:pointer}.choices button:hover{border-color:var(--c1)}
 .stmts{display:flex;flex-direction:column;gap:6px;margin:10px 0}.stmt{display:flex;gap:10px;align-items:flex-start;background:var(--panel2);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;cursor:pointer}
 .stmt input{margin:2px 0 0;width:18px;height:18px;flex:none}.stmt.ok{border-left-color:var(--win)}.stmt.ko{border-left-color:var(--loss)}.stmt.sel{background:#1f2b3b}
 details>summary{cursor:pointer;margin:10px 0 4px}.stmt small{display:block;color:var(--muted);font-size:13px;margin-top:3px}
+.why{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:10px 0;font-size:14px}.why p{margin:6px 0}.why ul{margin:6px 0;padding-left:18px}
+.why button,.linkbtn{background:none;border:1px solid var(--line);color:#91caff;border-radius:6px;padding:4px 8px;font:inherit;font-size:13px;cursor:pointer}
+.aline{font-size:17px;font-weight:600;line-height:1.6;background:var(--panel2);border-radius:8px;padding:10px 12px}
+textarea.syncout{font:13px/1.4 monospace;resize:vertical;margin-top:6px}
 .feedback.ok{border-left:4px solid var(--win)}.feedback.ko{border-left:4px solid var(--loss)}.tpanel .rank{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
 @media(max-width:900px){body{padding-bottom:calc(66px + env(safe-area-inset-bottom))}
 .tabs{position:fixed;top:auto;bottom:0;left:0;right:0;margin:0;gap:0;justify-content:space-around;background:var(--panel);border-bottom:0;border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
@@ -136,7 +140,7 @@ main{padding:14px 16px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.char
 </div>
 
 <div class="tab" data-tab="entrainement" hidden>
-<div class="modes" id="modes"><button data-mode="coup" class="active">Trouver le coup</button><button data-mode="etude">Étudier la position</button></div>
+<div class="modes" id="modes"><button data-mode="coup" class="active">Trouver le coup</button><button data-mode="etude">Étudier la position</button><button data-mode="devine">Deviner le coup</button><button data-mode="finales">Finales de référence</button><button data-mode="serie">Série chronométrée</button><button data-mode="aveugle">Calcul à l'aveugle</button></div>
 <div id="modeCoup">
 <div id="trMissing" class="panel empty" hidden></div>
 <section class="panel" id="trBlock"><h2>Séance d'entraînement</h2><p class="sub">Tes propres positions critiques : trouve le coup de Stockfish. Une position ratée revient dans la séance ; une position réussie revient de plus en plus tard (1, 3, 7, 16 puis 35 jours). La progression est enregistrée dans ce navigateur.</p>
@@ -144,9 +148,50 @@ main{padding:14px 16px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.char
 <div class="trainer"><div><div class="board" id="board"></div>
 <div class="boardnav"><button id="tBack" aria-label="Coup précédent" title="Coup précédent">◀</button><button id="tFwd" aria-label="Coup suivant" title="Coup suivant">▶</button></div></div>
 <div class="tpanel"><div class="rank" id="tMeta"></div><h3 id="tTitle"></h3><p id="tPrompt"></p><div class="feedback" id="tFeedback"></div>
-<div class="filters"><button id="tHint">Indice</button><button id="tSolve">Solution</button><button id="tNext">Position suivante →</button><button id="tPlay" hidden>Jouer la suite contre Stockfish</button></div>
-<div class="note" id="tLinks"></div></div></div>
-<div class="note">Clique sur une pièce, puis sur sa case d'arrivée. Le meilleur coup de Stockfish est validé, ainsi que les autres coups qu'il juge presque aussi bons. Un coup hors de ses 3 meilleurs n'est pas validé, même s'il peut être correct : vérifie-le avec le lien « Analyse ». Une fois l'exercice terminé, « Jouer la suite » te fait continuer la partie contre Stockfish.</div></section>
+<div class="filters"><button id="tHint">Indice</button><button id="tSolve">Solution</button><button id="tNext">Position suivante →</button><button id="tWhy" hidden>Pourquoi ?</button><button id="tPlay" hidden>Jouer la suite contre Stockfish</button></div>
+<div id="tWhyOut"></div><div class="note" id="tLinks"></div></div></div>
+<div class="note">Clique sur une pièce, puis sur sa case d'arrivée. Le meilleur coup de Stockfish est validé, ainsi que les autres coups qu'il juge presque aussi bons. Un coup hors de ses 3 meilleurs n'est pas validé, même s'il peut être correct : vérifie-le avec le lien « Analyse ». Une fois l'exercice terminé, « Pourquoi ? » montre la suite de Stockfish et ce qu'elle change (matériel, structure de pions, roi, pièces), la menace adverse et la réfutation du coup joué en partie ; « Jouer la suite » te fait continuer la partie contre Stockfish.</div></section>
+<section class="panel" style="margin-top:14px"><h2>Mes parties sur l'échiquier</h2><p class="sub">Une partie jouée en club ou en tournoi : colle-la au format PGN, ou seulement ses coups (« 1. e4 e5 2. Cf3 Cc6… », notation française ou anglaise). Stockfish l'analyse dans ce navigateur (environ une minute et demie, reste sur la page) et tes erreurs deviennent le thème « Mes parties sur l'échiquier ». Rien n'est envoyé : la partie reste dans ce navigateur, et passe dans le lien de synchronisation.</p>
+<textarea id="otbPgn" class="syncout" rows="5" placeholder="[White &quot;…&quot;]  [Black &quot;…&quot;]  [Date &quot;2026.10.25&quot;]  1. e4 e5 2. Cf3 Cc6 3. Fb5 …"></textarea>
+<div class="filters"><label>Je jouais les <select id="otbColor"><option value="w">Blancs</option><option value="b">Noirs</option></select></label><button id="otbGo">Analyser</button><span class="muted" id="otbMsg"></span></div>
+<div class="tablewrap"><table id="otbList"></table></div>
+<div class="note">L'analyse du navigateur est moins profonde que celle des parties en ligne : elle repère bien les erreurs nettes, moins les imprécisions. Ces parties n'entrent pas dans les statistiques.</div></section>
+</div>
+<div id="modeDevine" hidden>
+<div id="dMissing" class="panel empty" hidden></div>
+<section class="panel" id="dBlock"><h2>Deviner le coup</h2><p class="sub">Rejoue une partie longue d'un joueur du haut du classement Lichess, de son côté : à chaque coup, joue ce que tu jouerais à sa place. Ton coup est comparé au sien par Stockfish. C'est l'exercice qui apprend le mieux les plans : comment un joueur fort mène une position, coup après coup.</p>
+<div class="filters"><label>Partie <select id="dGame" class="select"></select></label><span class="muted" id="dStats"></span></div>
+<div class="trainer"><div><div class="board" id="dBoard"></div>
+<div class="boardnav" id="dViewNav" hidden><button id="dViewBack" aria-label="Coup précédent">◀</button><button id="dViewFwd" aria-label="Coup suivant">▶</button><button id="dViewEnd" aria-label="Revenir à la partie" title="Revenir à la partie">✕</button></div><div class="note" id="dViewInfo" style="text-align:center"></div></div>
+<div class="tpanel"><div class="rank" id="dMeta"></div><h3 id="dTitle"></h3><div class="feedback" id="dFeedback"></div>
+<div class="filters"><button id="dNext" hidden>Coup suivant →</button><button id="dSkip">Montrer son coup</button><button id="dWhy" hidden>Pourquoi ce coup ?</button><button id="dRestart">Recommencer la partie</button></div><div id="dWhyOut"></div></div></div>
+<div class="note">Les premiers coups (l'ouverture) se jouent tout seuls. « Ta précision » compte chaque coup comme Stockfish compte ceux de tes parties : un coup aussi bon que celui du joueur fort vaut autant, même s'il est différent. Ta progression dans chaque partie est enregistrée : tu peux t'arrêter et reprendre.</div></section>
+</div>
+<div id="modeFinales" hidden>
+<section class="panel"><h2>Finales de référence</h2><p class="sub">Les positions de finale à connaître par cœur, jouées contre Stockfish. <span id="fSub"></span></p>
+<div class="filters"><label>Finale <select id="fSel" class="select"></select></label></div>
+<div class="trainer"><div><div class="board" id="fBoard"></div></div>
+<div class="tpanel"><h3 id="fTitle"></h3><p id="fGoal"></p><div class="feedback" id="fFeedback"></div>
+<div class="filters"><button id="fHint">Conseil</button><button id="fRestart">Recommencer</button></div><p id="fConseil" class="why" hidden></p><div class="note" id="fLinks"></div></div></div>
+<div class="note">Stockfish joue le camp adverse au mieux. Pour une nulle, il faut tenir le nombre de coups indiqué sans être maté et sans laisser l'adversaire garder une dame.</div></section>
+</div>
+<div id="modeSerie" hidden>
+<div id="sMissing" class="panel empty" hidden></div>
+<section class="panel" id="sBlock"><h2>Série chronométrée</h2><p class="sub">Dix de tes positions critiques à enchaîner le plus vite possible, un seul essai chacune. La même série revient tant que tu ne la réussis pas en entier : refaire les mêmes positions de plus en plus vite ancre les motifs (méthode « Woodpecker »).</p>
+<div class="filters"><label>Thème <select id="sDeck" class="select"></select></label><button id="sGo">Démarrer</button><button id="sNew">Nouvelle série</button></div>
+<div class="trainer"><div><div class="board" id="sBoard"></div></div>
+<div class="tpanel"><div class="rank" id="sTimer"></div><h3 id="sTitle"></h3><div class="feedback" id="sFeedback"></div><div id="sHist"></div></div></div>
+<div class="note">Une série ne change pas les dates de retour de « Trouver le coup ». « Nouvelle série » en tire d'autres positions, d'abord celles que tu rates le plus.</div></section>
+</div>
+<div id="modeAveugle" hidden>
+<div id="aMissing" class="panel empty" hidden></div>
+<section class="panel" id="aBlock"><h2>Calcul à l'aveugle</h2><p class="sub">L'échiquier ne bouge pas : lis la suite de coups, joue-la dans ta tête, puis trouve le meilleur coup de la position d'arrivée en cliquant sur l'échiquier de départ (case de départ de la pièce, puis case d'arrivée). C'est l'entraînement du calcul : voir la position quelques coups plus loin. Positions de parties longues de joueurs forts.</p>
+<div class="filters"><label>Longueur <select id="aLen" class="select"><option value="2">2 demi-coups</option><option value="4" selected>4 demi-coups</option><option value="6">6 demi-coups</option></select></label><span class="muted" id="aStats"></span></div>
+<div class="trainer"><div><div class="board" id="aBoard"></div>
+<div class="boardnav"><button id="aBack" aria-label="Coup précédent">◀</button><button id="aFwd" aria-label="Coup suivant">▶</button></div></div>
+<div class="tpanel"><div class="rank" id="aMeta"></div><h3 id="aTitle"></h3><p class="aline" id="aLine"></p><div class="feedback" id="aFeedback"></div>
+<div class="filters"><button id="aSolve">Solution</button><button id="aNext">Position suivante →</button></div></div></div>
+<div class="note">Validé : le coup de Stockfish, ou un coup qu'il juge presque aussi bon. Un coup impossible dans la position d'arrivée n'est pas compté : c'est le signe qu'une pièce n'est pas où tu l'imaginais.</div></section>
 </div>
 <div id="modeEtude" hidden>
 <div id="eMissing" class="panel empty" hidden></div>

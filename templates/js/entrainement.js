@@ -6,6 +6,7 @@ const DECKS={
  ...Object.fromEntries(Object.entries(FINALES).map(([k,l])=>['fin_'+k,['· '+l,m=>m.ft===k]])),   // une finale par type
  ouverture:['Sortie d\'ouverture',m=>m.ph==='ouverture'],
  repertoire:['Mon répertoire d\'ouvertures',null],   // positions récurrentes de tes ouvertures (repertoire.js)
+ otb:['Mes parties sur l\'échiquier',null],           // parties collées dans le dashboard (partie.js)
  occ:['Occasions manquées',m=>m.occ],
  mm:['Mats manqués',m=>m.mm],
  temps:['Erreurs en zeitnot',m=>m.zt],
@@ -49,6 +50,7 @@ function renderTraining(G){const ok=typeof Chess!=='undefined'&&D.moments.some(m
  sel.value=deckChosen&&[...sel.options].some(o=>o.value===prev)?prev:def;
  buildQueue(false)}
 function deckCards(k){if(k==='repertoire')return repertoireCards().filter(m=>trIds.has(m.g));
+ if(k==='otb')return otbMoments();
  const f=DECKS[k][1];return D.moments.filter(m=>m.best&&trIds.has(m.g)&&f(m,D.games[m.g]))}
 function buildQueue(all){const now=Date.now();
  const due=deckCards($('tDeck').value).map(m=>({m,s:srs[cardId(m)]})).filter(c=>all||!c.s||c.s.due<=now);
@@ -74,15 +76,16 @@ function nextCard(){if(cur&&!cur.done&&cur.failed)grade(false);cur=null;
   if(best)cur={m,g:D.games[m.g],game:new Chess(m.fen),best,color:m.fen.split(' ')[1],sel:null,last:null,hint:false,failed:false,done:false,locked:false,pv:null,redo:[],wins:{}}}
  if(!cur){$('board').innerHTML='';$('tMeta').textContent='';$('tTitle').textContent='Rien à revoir aujourd\'hui dans ce thème';$('tLinks').innerHTML='';setFeedback('','');
   $('tPrompt').innerHTML='Change de thème, ou <a href="#" id="tAll">reprends toutes les positions de ce thème</a>.';$('tAll').onclick=e=>{e.preventDefault();buildQueue(true)};
-  $('tHint').disabled=$('tSolve').disabled=$('tBack').disabled=$('tFwd').disabled=true;$('tPlay').hidden=true;updateStats();return}
- const g=cur.g,m=cur.m;
- $('tMeta').textContent=m.rep?`Ton répertoire · position rencontrée dans ${m.count} parties · ${PHASE[m.ph]}`:`${g.date} · ${g.cadence} · contre ${g.adversaire} (${g.elo_adversaire}) · ${PHASE[m.ph]}`;
+  $('tHint').disabled=$('tSolve').disabled=$('tBack').disabled=$('tFwd').disabled=true;$('tPlay').hidden=$('tWhy').hidden=true;$('tWhyOut').innerHTML='';updateStats();return}
+ const g=cur.g,m=cur.m;$('tWhyOut').innerHTML='';
+ $('tMeta').textContent=m.rep?`Ton répertoire · position rencontrée dans ${m.count} parties · ${PHASE[m.ph]}`
+  :m.otb?`Sur l'échiquier · ${m.date||'sans date'}${m.adv?' · contre '+m.adv:''} · ${PHASE[m.ph]}`:`${g.date} · ${g.cadence} · contre ${g.adversaire} (${g.elo_adversaire}) · ${PHASE[m.ph]}`;
  $('tTitle').textContent=`Coup ${m.n.replace(/\.+$/,'')} · les ${cur.color==='w'?'Blancs':'Noirs'} jouent`;
  $('tPrompt').textContent=m.rep?`Position de ton répertoire. Le coup que tu y joues d'habitude est imprécis selon Stockfish : trouve mieux.`
   :m.mm?'Il y a un mat en 3 coups ou moins. Trouve-le.':m.occ?`Ton adversaire vient de se tromper : tu as ${m.wb} % de chances de gain. Punis l'erreur.`
   :m.wb>=T.win?`Tu es gagnant (${m.wb} % de chances de gain). Trouve le coup qui garde l'avantage.`:`Tes chances de gain : ${m.wb} %. Trouve le meilleur coup.`;
  setFeedback('','');
- $('tLinks').innerHTML=`<a href="${lichess(m.fen,cur.color==='w'?'Blancs':'Noirs')}" target="_blank" rel="noopener">Analyse</a>`+(m.rep?'':` · <a href="${esc(g.lien)}" target="_blank" rel="noopener">Partie</a>`);
+ $('tLinks').innerHTML=`<a href="${lichess(m.fen,cur.color==='w'?'Blancs':'Noirs')}" target="_blank" rel="noopener">Analyse</a>`+(m.rep||m.otb?'':` · <a href="${esc(g.lien)}" target="_blank" rel="noopener">Partie</a>`);
  draw();updateStats()}
 
 function draw(){const c=cur,mine=!c.pv||c.game.turn()===c.color;
@@ -90,7 +93,7 @@ function draw(){const c=cur,mine=!c.pv||c.game.turn()===c.color;
  $('board').innerHTML=boardHTML(c.game,c.color==='b',{last:c.last,sel:c.sel,hint:c.hint&&!c.done?c.best.from:null,targets});
  $('tHint').disabled=$('tSolve').disabled=c.done;
  $('tBack').disabled=!c.done||c.locked||!c.game.history().length;$('tFwd').disabled=c.locked||!c.redo.length;
- $('tPlay').hidden=!c.done;$('tPlay').textContent=c.pv?'Arrêter la partie':'Jouer la suite contre Stockfish'}
+ $('tPlay').hidden=!c.done;$('tPlay').textContent=c.pv?'Arrêter la partie':'Jouer la suite contre Stockfish';$('tWhy').hidden=!c.done||!!c.pv}
 
 function play(from,to){const c=cur,m=c.m,isBest=from===c.best.from&&to===c.best.to;
  const mv=c.game.move({from,to,promotion:isBest&&c.best.promotion||'q'});c.sel=null;c.last=[from,to];
@@ -144,4 +147,15 @@ $('tHint').onclick=()=>{if(!cur||cur.done)return;cur.hint=true;setFeedback('',`I
 $('tSolve').onclick=()=>{if(!cur||cur.done||cur.locked)return;cur.failed=true;grade(false);cur.game.move(cur.best.san);cur.last=[cur.best.from,cur.best.to];cur.sel=null;
  setFeedback('ko',`Solution : <b>${esc(cur.m.best)}</b>. ${gameNote()} La position reviendra dans la séance.`);draw()};
 $('tNext').onclick=()=>nextCard();
+
+/* Pourquoi ? Une fois l'exercice terminé : la suite de Stockfish après le meilleur coup, ce qu'elle change, la menace
+   adverse, et la réfutation du coup joué en partie. « Rejouer » charge la variante dans ◀/▶ */
+$('tWhy').onclick=()=>{const c=cur;if(!c||!c.done||c.pv||c.expl)return;c.expl='calc';
+ $('tWhyOut').innerHTML='<p class="muted">Stockfish cherche les variantes (quelques secondes)…</p>';
+ explainAll(c.m.fen,c.m.best,c.m.san).then(x=>{if(cur!==c)return;c.expl=x;
+  $('tWhyOut').innerHTML=explainHTML(x,{refut:`Et ${esc(x.refut?.san)}, ${c.m.rep?'ton coup habituel':'le coup joué en partie'} ? La réponse de Stockfish`})})
+ .catch(()=>{if(cur!==c)return;c.expl=null;$('tWhyOut').innerHTML='<p class="loss">Stockfish n\'a pas pu démarrer (connexion internet nécessaire).</p>'})};
+$('tWhyOut').addEventListener('click',e=>{const b=e.target.closest('[data-line]'),c=cur;if(!b||!c?.expl?.best||c.pv||c.locked)return;
+ const l=c.expl[b.dataset.line];c.game=new Chess(l.fen);c.redo=[...l.moves].reverse();c.last=null;c.sel=null;
+ setFeedback('',`Variante chargée : avance avec ▶. ${esc(l.text)}`);draw()});
 $('tDeck').addEventListener('change',()=>{deckChosen=true;buildQueue(false)});

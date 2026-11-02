@@ -554,10 +554,21 @@ def stronger_studies(rows, lichess, cache):
                 pass
     return studies[:STUDY_OTHERS_MAX]
 
+def classical_game(g, analysis):
+    """Partie longue entière pour « Deviner le coup » et le calcul à l'aveugle : coups (UCI), évaluations et meilleurs
+    coups du cache, camp du joueur fort. Ni lien ni pseudo : un identifiant tiré du lien suffit à suivre la progression."""
+    moves = [m.uci() for m in chess.pgn.read_game(io.StringIO(g["pgn"])).mainline_moves()]
+    if len(moves) < 40 or len(analysis["e"]) != len(moves) + 1:
+        return None
+    return {"id": hashlib.sha1(g["lien"].encode()).hexdigest()[:10], "m": " ".join(moves), "e": analysis["e"], "b": analysis["b"],
+            "c": "w" if g["couleur"] == "Blancs" else "b", "elo": int(g["elo_joueur"]) if g.get("elo_joueur") else None,
+            "eloa": int(g["elo_adversaire"]) if g.get("elo_adversaire") else None, "fam": g.get("famille"), "res": g["resultat"]}
+
 def classical_studies(args):
     """Positions d'étude tirées de parties longues (cadence classique Lichess) de joueurs du haut du classement :
     on y a le temps de jouer des positions, quel que soit le site du joueur. L'échantillon est commun à tous les
-    rapports, renouvelé tous les OBJECTIVE_MAX_AGE jours (jamais avec --no-analysis). Ni lien ni pseudo."""
+    rapports, renouvelé tous les OBJECTIVE_MAX_AGE jours (jamais avec --no-analysis). Ni lien ni pseudo.
+    Renvoie (positions d'étude, parties entières pour « Deviner le coup »)."""
     entry = chess_analysis.load_cache(CLASSICAL_CACHE) or None
     age = (datetime.now() - datetime.fromisoformat(entry["date"])).days if entry else None
     if (entry is None or age > OBJECTIVE_MAX_AGE) and not args.no_analysis:
@@ -568,22 +579,25 @@ def classical_studies(args):
         if entry:
             chess_analysis.save_cache(CLASSICAL_CACHE, entry)
     if not entry:
-        return []
+        return [], []
     games = entry["games"]
     if args.no_analysis:
         cache = chess_analysis.load_cache(ANALYSIS_CACHE)
     else:
         cache = chess_analysis.analyse_games([{"lien": g["lien"], "pgn": g["pgn"]} for g in games], ANALYSIS_CACHE,
                                              depth=args.depth, workers=args.workers, alternatives=False)
-    studies = []
+    studies, full = [], []
     for g in games:
         if g["lien"] in cache:
             try:
                 studies += [{**p, "elo": int(g["elo_joueur"]) if g.get("elo_joueur") else None, "fam": g.get("famille"),
                              "cad": g["cadence"], "src": "cl"} for p in chess_analysis.study_positions(g, g["pgn"], cache[g["lien"]])]
+                whole = classical_game(g, cache[g["lien"]])
+                if whole:
+                    full.append(whole)
             except Exception:
                 pass
-    return studies
+    return studies, full
 
 def sample_classical():
     global USERNAME
@@ -693,7 +707,7 @@ def run(args):
         cache = chess_analysis.analyse_games(targets, ANALYSIS_CACHE, depth=args.depth, workers=args.workers)
 
     analysable_links = {r["lien"] for r in analysable}
-    moments, studies = [], []
+    moments, studies, masters = [], [], []
     for idx, r in enumerate(rows):
         r["sf"] = None
         a = cache.get(r["lien"])
@@ -716,8 +730,9 @@ def run(args):
     if analysed:
         # l'objectif a pu analyser de nouvelles parties : on relit le cache pour les y trouver
         others = stronger_studies(rows, lichess, cache if args.no_analysis else chess_analysis.load_cache(ANALYSIS_CACHE))
-        classical = classical_studies(args)
-        print(f"Positions d'étude : {len(studies)} de tes parties, {len(others)} de joueurs plus forts, {len(classical)} de parties longues")
+        classical, masters = classical_studies(args)
+        print(f"Positions d'étude : {len(studies)} de tes parties, {len(others)} de joueurs plus forts, {len(classical)} de parties longues"
+              f" ({len(masters)} parties entières pour « Deviner le coup »)")
         studies += others + classical
 
     # --- CSV
@@ -748,6 +763,7 @@ def run(args):
         "site": "lichess" if lichess else "chesscom",
         "games": [{k: v for k, v in r.items() if k != "rules"} for r in rows],
         "moments": moments, "repertoire": repertoire, "objectif": objective, "etudes": studies,
+        "parties": masters,
     }
     home = "" if args.publier else '<a href="../index.html" class="muted" style="font-size:13px">← Tous les joueurs</a>'
     page = (dashboard_page().replace("__SITE__", site_label).replace("__HOME__", home)
@@ -829,7 +845,8 @@ def template(name):
     return (TEMPLATES_DIR / name).read_text(encoding="utf-8")
 
 # Code du tableau de bord, un fichier par fonctionnalité, réunis dans un seul <script> (l'ordre compte : demarrage.js en dernier)
-DASHBOARD_SCRIPTS = ["base.js", "comportement.js", "entrainement.js", "etude.js", "moteur.js", "repertoire.js", "objectif.js", "adversaire.js", "synchro.js", "demarrage.js"]
+DASHBOARD_SCRIPTS = ["base.js", "comportement.js", "entrainement.js", "etude.js", "moteur.js", "explication.js", "partie.js", "devine.js",
+                     "finales.js", "serie.js", "aveugle.js", "repertoire.js", "objectif.js", "adversaire.js", "synchro.js", "demarrage.js"]
 
 def dashboard_page():
     return template("dashboard.html").replace("__SCRIPT__", "\n".join(template(f"js/{name}") for name in DASHBOARD_SCRIPTS))

@@ -261,11 +261,14 @@ $('eBoard').addEventListener('click',e=>{const c=eCur,el=e.target.closest('.sq')
 $('eNext').onclick=()=>nextStudy();
 ['eSrc','ePhase'].forEach(id=>$(id).addEventListener('change',()=>buildStudyQueue(false)));
 
-/* Deux modes dans l'onglet : trouver le coup (entrainement.js) ou étudier la position */
-function setMode(m){if(m!=='etude')m='coup';$('modeCoup').hidden=m!=='coup';$('modeEtude').hidden=m!=='etude';
+/* Modes de l'onglet : trouver le coup (entrainement.js), étudier la position, deviner le coup (devine.js), finales de
+   référence (finales.js), série chronométrée (serie.js), calcul à l'aveugle (aveugle.js). Chaque section s'appelle
+   « mode » + nom ; MODE_OPEN[nom] prépare un mode à sa première ouverture. Le mode retenu est choisi dans demarrage.js. */
+const MODE_OPEN={},MODES=[...document.querySelectorAll('#modes button')].map(b=>b.dataset.mode);
+const modeId=m=>'mode'+m[0].toUpperCase()+m.slice(1);
+function setMode(m){if(!MODES.includes(m))m='coup';MODES.forEach(x=>$(modeId(x)).hidden=x!==m);
  document.querySelectorAll('#modes button').forEach(b=>b.classList.toggle('active',b.dataset.mode===m));
  try{localStorage.setItem('chess-up:mode',m)}catch(e){}
- drawPendingCharts()}
+ MODE_OPEN[m]?.();drawPendingCharts()}
 document.querySelectorAll('#modes button').forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
 $('cta').addEventListener('click',()=>setMode('coup'));   // « S'entraîner » depuis les priorités : les positions critiques
-setMode((()=>{try{return localStorage.getItem('chess-up:mode')}catch(e){return null}})());

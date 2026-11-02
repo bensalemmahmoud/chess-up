@@ -145,6 +145,28 @@ class ClassicalSample(unittest.TestCase):
         self.assertTrue(all(user == name.lower() and cadence == "classical" for name, user, cadence in calls))
         self.assertEqual(gen.USERNAME, "me")
 
+    def test_whole_game_without_link_or_name(self):
+        moves = "e4 e5 Nf3 Nc6 Bb5 a6 Ba4 Nf6 O-O Be7 Re1 b5 Bb3 d6 c3 O-O h3 Nb8 d4 Nbd7".split()
+        board, ucis = gen.chess.Board(), []
+        for san in moves:
+            ucis.append(board.push_san(san).uci())
+        pgn = " ".join(moves)
+        g = {"lien": "https://lichess.org/abcd1234", "pgn": pgn, "couleur": "Noirs", "elo_joueur": "2700", "elo_adversaire": "2650",
+             "famille": "Partie espagnole", "resultat": "Nulle", "adversaire": "Quelqu'un"}
+        analysis = {"e": [0] * (len(ucis) + 1), "b": [""] * (len(ucis) + 1)}
+        self.assertIsNone(gen.classical_game(g, analysis))                          # moins de 40 demi-coups
+        long_pgn = pgn + " Bc2 Bb7 Nbd2 Re8 Nf1 Bf8 Ng3 g6 a4 c5 d5 c4 Bg5 h6 Be3 Nc5 Qd2 h5 Bg5 Be7"
+        board, ucis = gen.chess.Board(), []
+        for san in long_pgn.split():
+            ucis.append(board.push_san(san).uci())
+        analysis = {"e": list(range(len(ucis) + 1)), "b": ["e2e4"] * (len(ucis) + 1)}
+        out = gen.classical_game(dict(g, pgn=long_pgn), analysis)
+        self.assertEqual(out["m"].split(), ucis)
+        self.assertEqual((out["c"], out["elo"], out["eloa"], out["res"]), ("b", 2700, 2650, "Nulle"))
+        self.assertNotIn("lichess", str(out))                                       # ni lien...
+        self.assertNotIn("Quelqu'un", str(out))                                     # ... ni pseudo
+        self.assertIsNone(gen.classical_game(dict(g, pgn=long_pgn), {"e": [0], "b": [""]}))   # analyse incomplète
+
 
 class LichessRow(unittest.TestCase):
     GAME = {
