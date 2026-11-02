@@ -21,7 +21,10 @@ const DECKS={
 const CAUSE_DECK={temps:'temps',conversion:'conversion',ouverture:'ouverture',milieu:'milieu',finale:'finale',positionnel:'tout'};
 const SRS_KEY='chess-up:entrainement:'+D.username,INTERVALS=[0,1,3,7,16,35];   // jours avant de revoir une position, selon sa boîte
 const srs=(()=>{try{return JSON.parse(localStorage.getItem(SRS_KEY))||{}}catch(e){return {}}})();
-const saveSrs=()=>{try{localStorage.setItem(SRS_KEY,JSON.stringify(srs))}catch(e){}};
+// stockage persistant demandé à la première réponse : sinon le navigateur peut l'effacer (Safari après 7 jours sans visite)
+let persistAsked=false;
+const saveSrs=()=>{try{localStorage.setItem(SRS_KEY,JSON.stringify(srs))}catch(e){}
+ if(!persistAsked){persistAsked=true;try{navigator.storage?.persist?.().catch(()=>{})}catch(e){}}};
 const cardId=m=>m.id||D.games[m.g].lien+'#'+m.ply;
 const GLYPH={p:'♟',n:'♞',b:'♝',r:'♜',q:'♛',k:'♚'},PIECE={p:'de pion',n:'de cavalier',b:'de fou',r:'de tour',q:'de la dame',k:'du roi'};
 const bare=s=>String(s).replace(/[+#?!]/g,'');
