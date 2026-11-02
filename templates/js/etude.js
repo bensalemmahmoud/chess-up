@@ -97,7 +97,7 @@ function renderStudy(G){const ok=typeof Chess!=='undefined'&&D.etudes.length>0;
  o[2].text=`Joueurs plus forts (${n.obj})`;o[3].text=`Parties longues de joueurs forts (${n.cl})`;
  buildStudyQueue(false)}
 function buildStudyQueue(all){const now=Date.now(),sc=themeScores(),w=weakness(sc),fams=myFamilies();
- const cards=studyCards().map(s=>({s,r:srs[studyId(s)]})).filter(c=>all||!c.r||c.r.due<=now);
+ const cards=studyCards().map(s=>({s,r:srs[studyId(s)]})).filter(c=>all||!c.r||!c.r.fin&&c.r.due<=now);
  cards.forEach(c=>c.rel=c.r?0:relevance(c.s,w,fams));
  cards.sort((a,b)=>(!a.r)-(!b.r)||(a.r?a.r.due-b.r.due:b.rel-a.rel));
  eQueue=cards.map(c=>c.s);nextStudy()}
@@ -223,7 +223,8 @@ function validateStudy(){const c=eCur,truth=evalBucket(c.s.e),ev=[100,50,0][Math
  const scores={ev,...c.pending};for(const t in per)scores[t]=Math.round(avg(per[t]));
  const good=c.stmts.filter(x=>!!x.checked===x.truth).length,ok=ev===100&&good>=c.stmts.length-1;
  const id=studyId(c.s),r=srs[id]||{b:0,n:0};
- r.b=ok?Math.min(r.b+1,INTERVALS.length-1):0;r.n++;r.t=Date.now();r.due=r.t+(ok?Math.max(1,INTERVALS[r.b]):1)*864e5;   // ratée : le lendemain
+ r.b=ok?Math.min(Math.max(r.b+1,3),INTERVALS.length-1):0;r.n++;r.t=Date.now();r.due=r.t+(ok?INTERVALS[r.b]:1)*864e5;   // réussie : 7 jours au moins ; ratée : le lendemain
+ if(ok&&c.s.g==null)r.fin=1;else delete r.fin;   // position d'une autre partie réussie : plus reproposée (il y en a assez de nouvelles)
  r.h=[...(r.h||[]),[r.t,scores]].slice(-HISTORY);srs[id]=r;saveSrs();
  eSession.n++;if(ok)eSession.ok++;c.result={good,ok};c.step='review';drawStudy();renderStudyScores();updateStudyStats()}
 
