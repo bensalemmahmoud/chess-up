@@ -31,15 +31,34 @@ const GLYPH={p:'♟',n:'♞',b:'♝',r:'♜',q:'♛',k:'♚'},PIECE={p:'de pion'
 const bare=s=>String(s).replace(/[+#?!]/g,'');
 const winPct=cp=>{cp=Math.max(-1000,Math.min(1000,cp));return 50+50*(2/(1+Math.exp(-0.00368208*cp))-1)};   // même formule que chess_analysis.win_pct
 const PLAYOUT_MOVES=20;   // partie contre Stockfish : position « convertie » si toujours gagnante après ce nombre de coups
+// Niveau de Stockfish pour « Jouer la suite » : convertir contre un joueur du niveau visé, pas contre un moteur à pleine force.
+// [clé, Elo (null : pleine force), libellé] ; les Elo Chess.com/Lichess et ceux du moteur ne sont qu'à peu près comparables
+const LEVELS=(()=>{const o=D.objectif,last=[...D.games].reverse().find(g=>g.elo_joueur&&(!o||g.cadence===o.cadence)),me=last?+last.elo_joueur:null;
+ return [o?.target&&['obj',o.target,`Niveau de l'objectif (≈ ${o.target} Elo)`],me&&['moi',me,`Ton niveau (≈ ${me} Elo)`],['max',null,'Pleine force']].filter(Boolean)})();
+$('tLevel').innerHTML=LEVELS.map(([k,,l])=>`<option value="${k}">${esc(l)}</option>`).join('');
+try{const v=localStorage.getItem('chess-up:niveau');if(LEVELS.some(l=>l[0]===v))$('tLevel').value=v}catch(e){}
+$('tLevel').addEventListener('change',e=>{try{localStorage.setItem('chess-up:niveau',e.target.value)}catch(err){}});
+const playoutElo=()=>LEVELS.find(l=>l[0]===$('tLevel').value)?.[1]||null;
+const levelText=()=>{const e=playoutElo();return e?`au niveau ≈ ${Engine.version>=17?Math.max(1320,e):e} Elo`:'à pleine force'};
+// Barre d'évaluation : tes chances de gain, ta couleur remplit la barre
+function evalBar(el,win,color){const w=Math.round(win);el.classList.toggle('noirs',color==='b');
+ el.firstElementChild.style.width=w+'%';el.lastElementChild.textContent=`tes chances : ${w} %`}
 let topCause=null,deckChosen=false,queue=[],cur=null,session={ok:0,n:0},trIds=new Set();
 
-// Échiquier en HTML : marks = {last:[cases], sel, hint, targets:[{to, capture}], zone:[cases surlignées]}
-function boardHTML(G,flip,marks={}){let h='';
+// Échiquier en HTML : marks = {last:[cases], sel, hint (case ou [cases]), targets:[{to, capture}], zone:[cases surlignées],
+// arrow:[de, vers] (flèche du coup conseillé)}
+function boardHTML(G,flip,marks={}){let h='';const hint=[].concat(marks.hint||[]);
  for(let r=0;r<8;r++)for(let c=0;c<8;c++){const f=flip?7-c:c,rk=flip?r+1:8-r,sq='abcdefgh'[f]+rk,p=G.get(sq),t=(marks.targets||[]).some(x=>x.to===sq);
   const cls=['sq',(f+rk)%2?'dark':'light'];   // a1 (f=0, rangée 1) est une case foncée
-  if(marks.last&&marks.last.includes(sq))cls.push('last');if(marks.sel===sq)cls.push('sel');if(marks.hint===sq)cls.push('hint');if(marks.zone&&marks.zone.includes(sq))cls.push('zone');if(t)cls.push('target',p?'capt':'');
+  if(marks.last&&marks.last.includes(sq))cls.push('last');if(marks.sel===sq)cls.push('sel');if(hint.includes(sq))cls.push('hint');if(marks.zone&&marks.zone.includes(sq))cls.push('zone');if(t)cls.push('target',p?'capt':'');
   h+=`<div class="${cls.join(' ')}" data-sq="${sq}">${c===0?`<span class="coord r">${rk}</span>`:''}${r===7?`<span class="coord f">${'abcdefgh'[f]}</span>`:''}${p?`<span class="pc ${p.color}">${GLYPH[p.type]}</span>`:''}</div>`}
- return h}
+ return h+(marks.arrow?arrowSVG(marks.arrow[0],marks.arrow[1],flip):'')}
+// Flèche par-dessus l'échiquier (une case = 1 unité) : ne bloque pas les clics
+function arrowSVG(from,to,flip){
+ const xy=sq=>{const f='abcdefgh'.indexOf(sq[0]),r=+sq[1];return flip?[7-f+.5,r-.5]:[f+.5,8-r+.5]},[x1,y1]=xy(from),[x2,y2]=xy(to);
+ const d=Math.hypot(x2-x1,y2-y1),ux=(x2-x1)/d,uy=(y2-y1)/d,hx=x2-ux*.42,hy=y2-uy*.42,px=-uy*.27,py=ux*.27;   // pointe : 0,42 case
+ return `<svg class="arrow" viewBox="0 0 8 8" aria-hidden="true"><line x1="${x1}" y1="${y1}" x2="${hx}" y2="${hy}" stroke-width=".2" stroke-linecap="round"/>`
+  +`<polygon points="${x2-ux*.12},${y2-uy*.12} ${hx+px},${hy+py} ${hx-px},${hy-py}"/></svg>`}
 
 function renderTraining(G){const ok=typeof Chess!=='undefined'&&D.moments.some(m=>m.best);
  $('trBlock').hidden=!ok;$('trMissing').hidden=ok;
@@ -73,10 +92,10 @@ function grade(ok){const id=cardId(cur.m),s=srs[id]||{b:0,n:0};
 
 function nextCard(){if(cur&&!cur.done&&cur.failed)grade(false);cur=null;
  while(queue.length&&!cur){const m=queue.shift(),best=new Chess(m.fen).move(m.best,{sloppy:true});
-  if(best)cur={m,g:D.games[m.g],game:new Chess(m.fen),best,color:m.fen.split(' ')[1],sel:null,last:null,hint:false,failed:false,done:false,locked:false,pv:null,redo:[],wins:{}}}
+  if(best)cur={m,g:D.games[m.g],game:new Chess(m.fen),best,color:m.fen.split(' ')[1],sel:null,last:null,hint:0,failed:false,done:false,locked:false,pv:null,redo:[],wins:{}}}
  if(!cur){$('board').innerHTML='';$('tMeta').textContent='';$('tTitle').textContent='Rien à revoir aujourd\'hui dans ce thème';$('tLinks').innerHTML='';setFeedback('','');
   $('tPrompt').innerHTML='Change de thème, ou <a href="#" id="tAll">reprends toutes les positions de ce thème</a>.';$('tAll').onclick=e=>{e.preventDefault();buildQueue(true)};
-  $('tHint').disabled=$('tSolve').disabled=$('tBack').disabled=$('tFwd').disabled=true;$('tPlay').hidden=$('tWhy').hidden=true;$('tWhyOut').innerHTML='';updateStats();return}
+  $('tHint').disabled=$('tSolve').disabled=$('tBack').disabled=$('tFwd').disabled=true;$('tPlay').hidden=$('tWhy').hidden=$('tEval').hidden=$('tLevelBox').hidden=true;$('tWhyOut').innerHTML='';updateStats();return}
  const g=cur.g,m=cur.m;$('tWhyOut').innerHTML='';
  $('tMeta').textContent=m.rep?`Ton répertoire · position rencontrée dans ${m.count} parties · ${PHASE[m.ph]}`
   :m.otb?`Sur l'échiquier · ${m.date||'sans date'}${m.adv?' · contre '+m.adv:''} · ${PHASE[m.ph]}`:`${g.date} · ${g.cadence} · contre ${g.adversaire} (${g.elo_adversaire}) · ${PHASE[m.ph]}`;
@@ -90,8 +109,13 @@ function nextCard(){if(cur&&!cur.done&&cur.failed)grade(false);cur=null;
 
 function draw(){const c=cur,mine=!c.pv||c.game.turn()===c.color;
  const targets=c.sel&&mine?c.game.moves({square:c.sel,verbose:true}):[];
- $('board').innerHTML=boardHTML(c.game,c.color==='b',{last:c.last,sel:c.sel,hint:c.hint&&!c.done?c.best.from:null,targets});
- $('tHint').disabled=$('tSolve').disabled=c.done;
+ const eh=c.done&&c.eh&&c.eh.to&&c.eh.fen===c.game.fen()?[c.eh.from,c.eh.to]:null;   // indice de Stockfish sur la position affichée
+ $('board').innerHTML=boardHTML(c.game,c.color==='b',{last:c.last,sel:c.sel,hint:!c.done&&c.hint?c.best.from:null,
+  arrow:eh||(!c.done&&c.hint>1?[c.best.from,c.best.to]:null),targets});
+ $('tSolve').disabled=c.done;$('tHint').disabled=c.done?!engineHintOk(c):c.hint>1;
+ $('tHint').textContent=!c.done&&c.hint===1?'Montrer le coup':'Indice';
+ $('tLevelBox').hidden=!c.done||!!c.pv;
+ $('tEval').hidden=!c.pv;if(c.pv)evalBar($('tEval'),c.pv.win??c.pv.start,c.color);
  $('tBack').disabled=!c.done||c.locked||!c.game.history().length;$('tFwd').disabled=c.locked||!c.redo.length;
  $('tPlay').hidden=!c.done;$('tPlay').textContent=c.pv?'Arrêter la partie':'Jouer la suite contre Stockfish';$('tWhy').hidden=!c.done||!!c.pv}
 
@@ -110,15 +134,20 @@ function play(from,to){const c=cur,m=c.m,isBest=from===c.best.from&&to===c.best.
 function playoutStatus(){const c=cur,pv=c.pv,G=c.game;
  if(G.in_checkmate()){pv.over=true;return G.turn()===c.color?['ko','Échec et mat : Stockfish a gagné.']:['ok','<b>Échec et mat, tu as gagné !</b>']}
  if(G.in_draw()||G.in_stalemate()){pv.over=true;return ['ko','Partie nulle.'+(pv.start>=T.win?' La position était gagnante : cherche où l\'avantage a filé.':'')]}
- if(pv.win==null)return ['','À toi de jouer.'];
+ if(pv.win==null)return ['',`À toi de jouer. Stockfish joue ${levelText()}.`];
  if(pv.start>=T.win&&pv.moves>=PLAYOUT_MOVES&&pv.win>=T.win){pv.over=true;return ['ok',`<b>Position convertie :</b> toujours gagnant après ${PLAYOUT_MOVES} coups (${Math.round(pv.win)} % de chances de gain).`]}
  const drop=pv.win<pv.start-20?' <span class="loss">Tu as perdu une bonne partie de ton avantage.</span>':'';
  return ['',`${pv.moves?`Coup ${pv.moves}`:'À toi de jouer'} · tes chances de gain : <b>${Math.round(pv.win)} %</b>.${drop}`]}
 function playoutStep(){const c=cur,[cls,msg]=playoutStatus();setFeedback(cls,msg);draw();
  if(c.pv.over||c.game.turn()===c.color)return;
  c.locked=true;setFeedback('','Stockfish réfléchit…');
- Engine.move(c.game.fen(),700).then(r=>{if(cur!==c||!c.pv)return;
-  c.game.move({from:r.from,to:r.to,promotion:r.promotion||'q'});c.last=[r.from,r.to];c.pv.win=winPct(-r.score);c.wins[c.game.history().length]=c.pv.win;c.locked=false;playoutStep()})
+ const elo=playoutElo();
+ Engine.move(c.game.fen(),700,{elo}).then(r=>{if(cur!==c||!c.pv)return;
+  c.game.move({from:r.from,to:r.to,promotion:r.promotion||'q'});c.last=[r.from,r.to];
+  const done=w=>{if(cur!==c||!c.pv)return;c.pv.win=w;c.wins[c.game.history().length]=w;c.locked=false;playoutStep()};
+  // à force limitée, le score de la recherche n'est pas celui du coup choisi : la position est réévaluée à pleine force
+  if(!elo||c.game.game_over())return done(winPct(-r.score));
+  return Engine.move(c.game.fen(),400).then(e=>done(winPct(e.score)))})
  .catch(()=>{if(cur!==c)return;c.locked=false;c.pv=null;setFeedback('ko','Stockfish n\'a pas pu démarrer (connexion internet nécessaire).');draw()})}
 $('tPlay').onclick=()=>{const c=cur;if(!c||!c.done)return;
  if(c.pv){c.pv=null;c.locked=false;setFeedback('','Partie arrêtée.');draw();return}
@@ -143,7 +172,16 @@ $('board').addEventListener('click',e=>{const el=e.target.closest('.sq'),c=cur;i
   if(!c.pv)return play(c.sel,sq);
   c.game.move({from:c.sel,to:sq,promotion:'q'});c.last=[c.sel,sq];c.sel=null;c.redo=[];c.pv.moves++;return playoutStep()}
  c.sel=p&&p.color===c.game.turn()&&c.sel!==sq?sq:null;draw()});
-$('tHint').onclick=()=>{if(!cur||cur.done)return;cur.hint=true;setFeedback('',`Indice : c'est un coup ${PIECE[cur.best.piece]} (case surlignée).`);draw()};
+/* Indice : pendant l'exercice, d'abord la pièce à jouer, puis le coup (flèche) ; ensuite (variante rejouée avec ◀/▶
+   ou partie contre Stockfish), le meilleur coup de Stockfish sur la position affichée */
+const engineHintOk=c=>c.done&&!c.locked&&!c.game.game_over()&&(!c.pv||!c.pv.over&&c.game.turn()===c.color)&&c.eh?.fen!==c.game.fen();
+$('tHint').onclick=()=>{const c=cur;if(!c)return;
+ if(!c.done){if(c.hint>1)return;c.hint++;
+  setFeedback('',c.hint===1?`Indice : c'est un coup ${PIECE[c.best.piece]} (case surlignée).`:'Indice : le coup est indiqué par la flèche. Joue-le.');draw();return}
+ if(!engineHintOk(c))return;
+ const fen=c.game.fen();c.eh={fen};setFeedback('','Stockfish cherche le meilleur coup…');draw();
+ engineHint(fen).then(h=>{if(cur!==c||c.game.fen()!==fen)return;c.eh=h&&{fen,...h};setFeedback('',h?'Indice : '+h.text:'Aucun coup possible.');draw()})
+ .catch(()=>{if(cur!==c)return;c.eh=null;setFeedback('ko','Stockfish n\'a pas pu démarrer (connexion internet nécessaire).');draw()})};
 $('tSolve').onclick=()=>{if(!cur||cur.done||cur.locked)return;cur.failed=true;grade(false);cur.game.move(cur.best.san);cur.last=[cur.best.from,cur.best.to];cur.sel=null;
  setFeedback('ko',`Solution : <b>${esc(cur.m.best)}</b>. ${gameNote()} La position reviendra dans la séance.`);draw()};
 $('tNext').onclick=()=>nextCard();

@@ -179,3 +179,5 @@ python -m unittest discover -s tests
 ```
 
 Ils vérifient les calculs Stockfish, la lecture des parties, le répertoire, l'échantillon de l'objectif et le chiffrement. Sur GitHub, ils sont lancés avant chaque publication : si l'un échoue, le site garde sa version précédente.
+
+`tests/test_dashboard.py` joue aussi le dashboard dans un vrai navigateur, sur des données inventées : onglets, indices, Stockfish du navigateur, partie contre Stockfish, étude, « Deviner le coup », finales, et aucune page plus large que l'écran. Il faut Node 22 ou plus et Edge, Chrome ou Chromium, sinon ce test est ignoré, ainsi qu'une connexion internet (chess.js et Stockfish viennent de CDN). Options : `NAVIGATEUR=<chemin>`, `SANS_MOTEUR=1` (sans Stockfish), `TAILLE=390x844` (écran de téléphone), `CAPTURES=<dossier>` (une capture d'écran par scénario). Pour lancer seulement les scénarios : `node tests/navigateur.mjs <page.html> <navigateur>`.

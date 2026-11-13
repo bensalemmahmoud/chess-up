@@ -34,7 +34,13 @@ jobs:
 
       - run: sudo apt-get update && sudo apt-get install -y stockfish
 
+      # Node 22+ pour piloter Chrome (déjà installé sur le runner) dans les tests du dashboard
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
       # Si un test échoue, rien n'est publié : le site garde la version précédente.
+      # tests/test_dashboard.py joue le dashboard dans Chrome sans fenêtre (indices, Stockfish du navigateur, modes).
       - name: Tests
         run: python -m unittest discover -s tests -v
         env:

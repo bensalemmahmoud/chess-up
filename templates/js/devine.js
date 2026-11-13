@@ -24,16 +24,16 @@ function dvStart(i,restart){const p=PARTIES[i],moves=p.m.split(' '),r=restart?{p
  const G=new Chess();let ply=0;
  const target=Math.max(DV_START,r.ply);
  while(ply<moves.length&&(ply<target||(ply%2===0?'w':'b')!==p.c)){dvUci(G,moves[ply]);ply++}
- dCur={p,i,moves,G,ply,r:{...r},sel:null,last:null,busy:false,expl:null,shown:false};
+ dCur={p,i,moves,G,ply,r:{...r},sel:null,last:null,busy:false,expl:null,shown:false,hint:false};
  const h=G.history({verbose:true}).pop();if(h)dCur.last=[h.from,h.to];
  $('dWhyOut').innerHTML='';$('dViewNav').hidden=true;dvFeedback('',ply>=moves.length?'Partie terminée.':'À toi : quel coup joue le joueur fort ?');dvDraw()}
 function dvFeedback(cls,html){$('dFeedback').className='feedback '+cls;$('dFeedback').innerHTML=html}
 function dvDraw(){const c=dCur,G=c.G,ask=!c.shown&&!c.busy&&c.ply<c.moves.length;
- $('dBoard').innerHTML=boardHTML(G,c.p.c==='b',{last:c.last,sel:c.sel,targets:ask&&c.sel?G.moves({square:c.sel,verbose:true}):[]});
+ $('dBoard').innerHTML=boardHTML(G,c.p.c==='b',{last:c.last,sel:c.sel,hint:ask&&c.hint?c.moves[c.ply].slice(0,2):null,targets:ask&&c.sel?G.moves({square:c.sel,verbose:true}):[]});
  const r=c.r;$('dMeta').textContent=`${c.p.elo||'?'} Elo contre ${c.p.eloa||'?'}${c.p.fam?' · '+c.p.fam:''}`;
  $('dTitle').textContent=c.ply<c.moves.length?`Coup ${G.fen().split(' ')[5]} · tu joues les ${c.p.c==='w'?'Blancs':'Noirs'}`:'Fin de la partie';
  $('dStats').textContent=r.n?`${r.f}/${r.n} coups trouvés · ta précision : ${fmt(r.a/r.n,0)} % · celle du joueur fort : ${fmt(r.am/r.n,0)} %`:'';
- $('dWhy').hidden=!c.shown;$('dNext').hidden=!c.shown;$('dSkip').hidden=c.shown||c.ply>=c.moves.length}
+ $('dWhy').hidden=!c.shown;$('dNext').hidden=!c.shown;$('dSkip').hidden=$('dHint').hidden=c.shown||c.ply>=c.moves.length;$('dHint').disabled=c.hint}
 function dvSave(){const c=dCur;srs['dv:'+c.p.id]={...c.r,ply:c.ply,t:Date.now()};saveSrs()}
 
 // Chances de gain du camp qui vient de jouer, après le coup
@@ -42,8 +42,8 @@ function dvGuess(mv){const c=dCur,p=c.p,ply=c.ply,master=c.moves[ply],sign=p.c==
  c.G.undo();c.fenBefore=c.G.fen();c.guess=mv.san;   // le coup proposé est retiré : on joue ensuite celui du maître
  const lm=Math.max(0,winPct(sign*p.e[ply])-winPct(sign*p.e[ply+1]));   // ce que son coup a coûté (cache)
  const M=new Chess(c.fenBefore),mm=dvUci(M,master),found=u===master;c.masterSan=mm.san;
- const finish=loss=>{c.busy=false;c.r.n++;if(found)c.r.f++;c.r.a+=moveAccuracy(loss);c.r.am+=moveAccuracy(lm);
-  const grade=found?['ok','<b>C\'est son coup !</b>']:loss<T.imp?['ok',`<b>Bon coup aussi.</b> Il a joué <b>${esc(mm.san)}</b>.`]
+ const finish=loss=>{c.busy=false;c.r.n++;if(found&&!c.hint)c.r.f++;   // trouvé avec l'indice : pas compté comme trouvéc.r.a+=moveAccuracy(loss);c.r.am+=moveAccuracy(lm);
+  const grade=found?['ok',c.hint?'<b>C\'est son coup</b> (avec l\'indice).':'<b>C\'est son coup !</b>']:loss<T.imp?['ok',`<b>Bon coup aussi.</b> Il a joué <b>${esc(mm.san)}</b>.`]
    :loss<T.err?['',`<b>Imprécis</b> (−${Math.round(loss)} points de chances de gain). Il a joué <b>${esc(mm.san)}</b>.`]
    :['ko',`<b>Erreur</b> (−${Math.round(loss)} points de chances de gain). Il a joué <b>${esc(mm.san)}</b>.`];
   const best=p.b[ply]&&p.b[ply]!==master?(()=>{const B=new Chess(c.fenBefore),b=dvUci(B,p.b[ply]);return b?` Stockfish préférait ${esc(b.san)}.`:''})():'';
@@ -56,7 +56,7 @@ function dvGuess(mv){const c=dCur,p=c.p,ply=c.ply,master=c.moves[ply],sign=p.c==
  dvWin(Gg).then(wg=>dvWin(M).then(wm=>{if(dCur!==c)return;finish(Math.max(0,lm+wm-wg))}))
  .catch(()=>{if(dCur!==c)return;c.busy=false;dvFeedback('ko','Stockfish n\'a pas pu démarrer (connexion internet nécessaire).');dvDraw()})}
 // Suite : la réponse de l'adversaire, puis à nouveau au joueur
-function dvNext(){const c=dCur;c.ply++;c.shown=false;c.expl=null;c.view=null;$('dViewNav').hidden=true;$('dWhyOut').innerHTML='';
+function dvNext(){const c=dCur;c.ply++;c.shown=false;c.hint=false;c.expl=null;c.view=null;$('dViewNav').hidden=true;$('dWhyOut').innerHTML='';
  if(c.ply<c.moves.length){const r=dvUci(c.G,c.moves[c.ply]);c.last=[r.from,r.to];c.ply++}
  dvSave();
  if(c.ply>=c.moves.length){const r=c.r;dvFeedback('ok',`<b>Partie terminée.</b> ${r.f}/${r.n} coups trouvés, ta précision ${fmt(r.a/Math.max(1,r.n),0)} % contre ${fmt(r.am/Math.max(1,r.n),0)} % pour le joueur fort.`);
@@ -71,6 +71,9 @@ $('dBoard').addEventListener('click',e=>{const el=e.target.closest('.sq'),c=dCur
 $('dNext').onclick=()=>{if(dCur?.shown)dvNext()};
 $('dSkip').onclick=()=>{const c=dCur;if(!c||c.busy||c.shown||c.ply>=c.moves.length)return;c.fenBefore=c.G.fen();
  const mv=dvUci(c.G,c.moves[c.ply]);c.masterSan=mv.san;c.guess=null;c.last=[mv.from,mv.to];c.shown=true;dvFeedback('',`Il a joué <b>${esc(mv.san)}</b> (coup non compté).`);dvDraw()};
+// Indice : la pièce que joue le joueur fort
+$('dHint').onclick=()=>{const c=dCur;if(!c||c.busy||c.shown||c.hint||c.ply>=c.moves.length)return;c.hint=true;
+ const pc=c.G.get(c.moves[c.ply].slice(0,2));dvFeedback('',`Indice : il joue un coup ${PIECE[pc.type]} (case surlignée).`);dvDraw()};
 $('dRestart').onclick=()=>{if(dCur)dvStart(dCur.i,true)};
 $('dGame').addEventListener('change',e=>dvStart(+e.target.value));
 $('dWhy').onclick=()=>{const c=dCur;if(!c?.shown||c.expl)return;c.expl='calc';$('dWhyOut').innerHTML='<p class="muted">Stockfish cherche les variantes (quelques secondes)…</p>';

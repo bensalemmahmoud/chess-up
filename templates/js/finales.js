@@ -36,15 +36,17 @@ function renderFinales(){const gap=endgameGaps(),order=[...REF_ENDGAMES].sort((a
  $('fSub').textContent=worst&&worst[1]<0?`Dans tes parties, c'est dans les « ${FINALES[worst[0]].toLowerCase()} » que tu perds le plus de points par rapport à tes chances en y entrant : ces positions sont en tête.`:'';
  sel.value=prev&&REF_ENDGAMES.some(r=>r.k===prev)?prev:order[0].k;frStart(sel.value)}
 function frStart(k){const r=REF_ENDGAMES.find(x=>x.k===k),G=new Chess(r.fen);
- fCur={r,G,me:G.turn(),moves:0,over:false,sel:null,last:null,busy:false,hint:false};
+ fCur={r,G,me:G.turn(),moves:0,over:false,sel:null,last:null,busy:false,hint:false,help:false,eh:null};
  $('fTitle').textContent=r.nom;
  $('fGoal').innerHTML=`Tu joues les ${fCur.me==='w'?'Blancs':'Noirs'}. ${r.fin==='nulle'?`<b>Tiens la nulle</b> pendant ${r.max} coups contre Stockfish.`:r.fin==='mat'?`<b>Mate</b> en moins de ${r.max} coups.`:r.fin==='pion'?`<b>Gagne le pion</b> en moins de ${r.max} coups.`:`<b>Va à dame</b> (et garde-la) en moins de ${r.max} coups.`}`;
  $('fLinks').innerHTML=`<a href="${lichess(r.fen,fCur.me==='w'?'Blancs':'Noirs')}" target="_blank" rel="noopener">Analyse</a>`;
  frFeedback('','À toi de jouer.');frDraw()}
 function frFeedback(cls,html){$('fFeedback').className='feedback '+cls;$('fFeedback').innerHTML=html}
 function frDraw(){const c=fCur,G=c.G,mine=!c.over&&!c.busy&&G.turn()===c.me;
- $('fBoard').innerHTML=boardHTML(G,c.me==='b',{last:c.last,sel:c.sel,targets:mine&&c.sel?G.moves({square:c.sel,verbose:true}):[]});
- $('fHint').disabled=c.hint;$('fConseil').hidden=!c.hint;$('fConseil').textContent=c.r.conseil}
+ const eh=c.eh?.to&&c.eh.fen===G.fen()?[c.eh.from,c.eh.to]:null;
+ $('fBoard').innerHTML=boardHTML(G,c.me==='b',{last:c.last,sel:c.sel,arrow:eh,targets:mine&&c.sel?G.moves({square:c.sel,verbose:true}):[]});
+ // le conseil d'abord ; ensuite, le même bouton demande le meilleur coup à Stockfish
+ $('fHint').textContent=c.hint?'Meilleur coup':'Conseil';$('fHint').disabled=c.hint&&(!mine||c.eh?.fen===G.fen());$('fConseil').hidden=!c.hint;$('fConseil').textContent=c.r.conseil}
 // 'ok' réussi, 'ko' raté, null : on continue
 function frStatus(){const c=fCur,G=c.G,r=c.r,op=OTHER[c.me],pieces=col=>boardOf(G).filter(p=>p&&p.color===col&&p.type!=='k');
  if(G.in_checkmate())return G.turn()===op?'ok':'ko';
@@ -55,9 +57,9 @@ function frStatus(){const c=fCur,G=c.G,r=c.r,op=OTHER[c.me],pieces=col=>boardOf(
  if(r.fin==='pion'&&!pieces(op).length)return 'ok';
  return c.moves>=r.max&&G.turn()===c.me?'ko':null}
 function frEnd(st){const c=fCur,rec=srs['fr:'+c.r.k]||{n:0,ok:0};c.over=true;
- rec.n++;if(st==='ok')rec.ok++;rec.t=Date.now();srs['fr:'+c.r.k]=rec;saveSrs();
+ rec.n++;if(st==='ok'&&!c.help)rec.ok++;   // réussie avec les coups de Stockfish : pas validéerec.t=Date.now();srs['fr:'+c.r.k]=rec;saveSrs();
  const why=c.G.in_checkmate()?'Échec et mat.':c.G.in_stalemate()?'Pat.':c.G.in_draw()||c.G.in_threefold_repetition()?'Partie nulle.':'';
- frFeedback(st==='ok'?'ok':'ko',st==='ok'?`<b>Réussi !</b> ${why} ${c.hint?'':'Sans le conseil, bravo.'}`
+ frFeedback(st==='ok'?'ok':'ko',st==='ok'?(c.help?`<b>Réussi avec l'aide de Stockfish.</b> ${why} Recommence sans son aide pour la valider.`:`<b>Réussi !</b> ${why} ${c.hint?'':'Sans le conseil, bravo.'}`)
   :`<b>Raté.</b> ${why} Lis le conseil et recommence : cette finale doit devenir un automatisme.`);
  const o=[...$('fSel').options].find(o=>o.value===c.r.k);if(o)o.text=o.text.replace(/ · (✓ réussie|à retenter)$/,'')+(rec.ok?' · ✓ réussie':' · à retenter');frDraw()}
 function frReply(){const c=fCur;let st=frStatus();if(st)return frEnd(st);
@@ -72,5 +74,10 @@ $('fBoard').addEventListener('click',e=>{const el=e.target.closest('.sq'),c=fCur
  const p=G.get(sq);c.sel=p&&p.color===G.turn()&&c.sel!==sq?sq:null;frDraw()});
 $('fSel').addEventListener('change',e=>frStart(e.target.value));
 $('fRestart').onclick=()=>{if(fCur)frStart(fCur.r.k)};
-$('fHint').onclick=()=>{if(fCur){fCur.hint=true;frDraw()}};
+$('fHint').onclick=()=>{const c=fCur;if(!c)return;
+ if(!c.hint){c.hint=true;return frDraw()}
+ if(c.over||c.busy||c.G.turn()!==c.me||c.eh?.fen===c.G.fen())return;
+ const fen=c.G.fen();c.eh={fen};c.help=true;frFeedback('','Stockfish cherche le meilleur coup…');frDraw();
+ engineHint(fen).then(h=>{if(fCur!==c||c.G.fen()!==fen)return;c.eh=h&&{fen,...h};frFeedback('',h?h.text:'Aucun coup possible.');frDraw()})
+ .catch(()=>{if(fCur!==c)return;c.eh=null;frFeedback('ko','Stockfish n\'a pas pu démarrer (connexion internet nécessaire).');frDraw()})};
 MODE_OPEN.finales=()=>{if(!fCur)renderFinales()};

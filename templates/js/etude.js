@@ -163,19 +163,23 @@ function answerThreat(mv){const c=eCur,t=c.threat;t.guess=mv;t.right=mv.to===t.m
  addScore('pr',t.right?100:0);c.game=new Chess(t.flip);c.game.move(t.mv.san);c.last=[t.mv.from,t.mv.to];drawStudy()}
 
 /* Ton coup : comparé à celui de Stockfish par Stockfish lui-même (même moteur, même temps) */
-function startMove(){const c=eCur;c.step='coup';c.game=new Chess(c.s.fen);c.pick=c.last=null;c.zone=[];drawStudy()}
+function startMove(){const c=eCur;c.step='coup';c.game=new Chess(c.s.fen);c.pick=c.last=null;c.zone=[];c.hint=0;
+ c.bestMv=new Chess(c.s.fen).move(c.s.best,{sloppy:true});drawStudy()}
 const winAfter=G=>G.in_checkmate()?Promise.resolve(100):G.game_over()?Promise.resolve(50):Engine.move(G.fen(),ENGINE_MS).then(r=>100-winPct(r.score));
 function answerMove(mv){const c=eCur,s=c.s,best=new Chess(s.fen);const bm=best.move(s.best,{sloppy:true});c.move={mv,bm};
  if(bare(mv.san)===bare(s.best)){c.move.loss=0;return finishMove()}
  c.busy=true;drawStudy();
  winAfter(c.game).then(wu=>winAfter(best).then(wb=>{if(eCur!==c)return;c.move.loss=Math.max(0,wb-wu);c.busy=false;finishMove()}))
  .catch(()=>{if(eCur!==c)return;c.busy=false;c.move.error=true;c.step='done';drawStudy()})}
-function finishMove(){const c=eCur,l=c.move.loss;c.move.grade=l<T.imp?2:l<T.err?1:0;addScore('co',[0,50,100][c.move.grade]);
+// avec indice, la note est plafonnée : la pièce montrée vaut au plus « imprécis », le coup montré ne rapporte rien
+function finishMove(){const c=eCur,l=c.move.loss;c.move.grade=Math.min(l<T.imp?2:l<T.err?1:0,[2,1,0][c.hint||0]);addScore('co',[0,50,100][c.move.grade]);
  c.step='done';c.zone=c.move.bm?[c.move.bm.from,c.move.bm.to]:[];drawStudy()}
 
 function drawStudyBoard(){const c=eCur,asking=(c.step==='menace'&&c.threat?.state==='ask'&&!c.threat.guess)||(c.step==='coup'&&!c.move);
  $('eBoard').classList.toggle('mini',!asking);
- $('eBoard').innerHTML=boardHTML(c.game,c.color==='b',{zone:c.zone,last:c.last,sel:c.pick,targets:asking&&c.pick?c.game.moves({square:c.pick,verbose:true}):[]})}
+ const hint=c.step==='coup'&&!c.move&&c.hint&&c.bestMv;
+ $('eBoard').innerHTML=boardHTML(c.game,c.color==='b',{zone:c.zone,last:c.last,sel:c.pick,hint:hint?c.bestMv.from:null,arrow:hint&&c.hint>1?[c.bestMv.from,c.bestMv.to]:null,
+  targets:asking&&c.pick?c.game.moves({square:c.pick,verbose:true}):[]})}
 function evalFeedback(){const c=eCur,s=c.s,truth=evalBucket(s.e),d=Math.abs(c.ev-truth),g=s.g!=null?D.games[s.g]:null;
  const mine=g?` · tes chances de gain : ${Math.round(c.color==='w'?winPct(s.e):100-winPct(s.e))} %`:'';
  return `<div class="feedback ${d===0?'ok':d===1?'':'ko'}"><b>${d===0?'Juste.':d===1?'Presque.':'Non.'}</b> Stockfish : <b>${evalText(s.e)}</b>, ${evalWords(truth)}${mine}. Ta réponse : ${evalWords(c.ev)}.</div>`}
@@ -199,11 +203,13 @@ function threatHTML(){const t=eCur.threat;if(!t)return '';
  if(!t.guess)return `<p><b>Que menace l'adversaire ?</b> Si c'était à lui de jouer, quel coup ferait-il ? Joue-le sur l'échiquier pour ${eCur.color==='w'?'les Noirs':'les Blancs'}.</p>`;
  return `<div class="feedback ${t.right?'ok':'ko'}"><b>${t.right?'Bien vu.':'Non.'}</b> La menace : ${threatText(t)}.${t.right?'':` Tu as proposé ${esc(t.guess.san)}.`} Avant de jouer ton plan, pare-la.</div>`}
 function moveHTML(){const c=eCur,s=c.s,m=c.move,who=s.g!=null?'Tu as joué':'Le joueur a joué';
- if(!m)return `<p><b>À toi de jouer :</b> quel coup choisis-tu ? Joue-le sur l'échiquier.</p>`;
+ if(!m)return `<p><b>À toi de jouer :</b> quel coup choisis-tu ? Joue-le sur l'échiquier.</p>`
+  +(c.hint===1?`<p class="muted">Indice : c'est un coup ${PIECE[c.bestMv.piece]} (case surlignée).</p>`:c.hint>1?'<p class="muted">Indice : le coup de Stockfish est indiqué par la flèche.</p>':'')
+  +(c.bestMv&&c.hint<2?`<div class="filters"><button id="eHint">${c.hint?'Montrer le coup':'Indice'}</button></div>`:'');
  if(c.busy)return `<div class="feedback">Stockfish évalue ${esc(m.mv.san)}…</div>`;
  if(m.error)return '<div class="feedback ko">Stockfish n\'a pas pu évaluer ton coup (connexion internet nécessaire).</div>';
  const verdict=['Ce coup perd l\'avantage ou aggrave la position','Coup imprécis','Bon coup'][m.grade];
- return `<div class="feedback ${m.grade===2?'ok':m.grade===0?'ko':''}"><b>${verdict}.</b> Ton coup : ${esc(m.mv.san)}${m.loss?` (${Math.round(m.loss)} points de chances de gain de moins que le meilleur)`:''}. Coup de Stockfish : <b>${esc(s.best)}</b> (cases surlignées). ${who} ${esc(s.jo||'?')} dans la partie.</div>`}
+ return `<div class="feedback ${m.grade===2?'ok':m.grade===0?'ko':''}"><b>${verdict}.</b> Ton coup : ${esc(m.mv.san)}${m.loss?` (${Math.round(m.loss)} points de chances de gain de moins que le meilleur)`:''}. Coup de Stockfish : <b>${esc(s.best)}</b> (cases surlignées). ${who} ${esc(s.jo||'?')} dans la partie.${c.hint?` Avec ${c.hint>1?'le coup montré':'l\'indice'}, la note est plafonnée.`:''}</div>`}
 function drawStudy(){const c=eCur;drawStudyBoard();let h='';
  if(c.ev!=null)h+=evalFeedback();
  if(c.why!=null)h+=whyFeedback();
@@ -248,6 +254,7 @@ $('eBody').addEventListener('click',e=>{const c=eCur;if(!c)return;const b=e.targ
  else if(e.target.id==='eValidate'&&c.step==='elements'){c.zone=[];validateStudy()}
  else if(e.target.id==='eGoThreat')startThreat();
  else if(e.target.id==='eGoMove')startMove();
+ else if(e.target.id==='eHint'&&c.step==='coup'&&!c.move&&c.hint<2){c.hint++;drawStudy()}
  else if(z&&c.result){const i=+z.dataset.z,x=i<c.stmts.length?c.stmts[i]:c.extra[i-c.stmts.length];
   c.sel=c.sel===i?null:i;c.zone=c.sel==null||!x.truth?[]:c.s.f[x.c][x.k];
   document.querySelectorAll('#eBody [data-z]').forEach(el=>el.classList.toggle('sel',+el.dataset.z===c.sel));drawStudyBoard()}});
