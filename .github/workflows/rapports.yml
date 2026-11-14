@@ -61,6 +61,8 @@ jobs:
           PY
 
       # Parties téléchargées et analyses des exécutions précédentes.
+      # Ne pas modifier la liste des chemins : la version du cache en dépend, et une liste différente ne retrouve
+      # plus aucun cache existant (toutes les analyses faites ici seraient refaites).
       - uses: actions/cache@v4
         with:
           path: |
@@ -68,8 +70,6 @@ jobs:
             cache/analyses.ci.json
             cache/objectifs.json
             cache/classiques.json
-            cache/maitres.json
-            cache/structures.json
           key: chess-cache-${{ github.run_id }}
           restore-keys: chess-cache-
 
