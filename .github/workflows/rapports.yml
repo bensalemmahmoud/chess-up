@@ -23,9 +23,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 340
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -35,7 +35,7 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y stockfish
 
       # Node 22+ pour piloter Chrome (déjà installé sur le runner) dans les tests du dashboard
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
 
@@ -63,7 +63,7 @@ jobs:
       # Parties téléchargées et analyses des exécutions précédentes.
       # Ne pas modifier la liste des chemins : la version du cache en dépend, et une liste différente ne retrouve
       # plus aucun cache existant (toutes les analyses faites ici seraient refaites).
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: |
             cache/parties
@@ -98,7 +98,7 @@ jobs:
       - run: cp cache/analyses.json cache/analyses.ci.json
 
       # Uniquement site/ : rapports chiffrés et page d'accueil sans nom.
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: site
 
@@ -110,4 +110,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
