@@ -234,5 +234,43 @@
    "duree": 1923,
    "t": 0
   }
+ ],
+ "centre_ouvert": [
+  {
+   "id": "qywQ9r1DeYg",
+   "titre": "Open Center Positions | Chess Middlegames",
+   "chaine": "Hanging Pawns",
+   "vues": 18151,
+   "duree": 1777,
+   "t": 0
+  }
+ ],
+ "pions_pendants": [
+  {
+   "id": "OlbF8j6_0KU",
+   "titre": "Hanging Pawns | Chess Middlegames",
+   "chaine": "Hanging Pawns",
+   "vues": 18146,
+   "duree": 2101,
+   "t": 0
+  }
+ ],
+ "benoni": [
+  {
+   "id": "FCbGGvLb468",
+   "titre": "The Modern Benoni: 20 Ideas You Must Know | Opening Masterclass",
+   "chaine": "Sam Asaka",
+   "vues": 18913,
+   "duree": 2851,
+   "t": 0
+  },
+  {
+   "id": "dFaqnvtu7w4",
+   "titre": "Understanding Your Openings | The Benoni Defence",
+   "chaine": "ChessCoach Andras",
+   "vues": 11176,
+   "duree": 1450,
+   "t": 0
+  }
  ]
 }
