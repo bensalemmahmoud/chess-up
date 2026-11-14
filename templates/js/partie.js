@@ -56,7 +56,7 @@ $('otbGo').onclick=()=>{if(otbBusy)return;const text=$('otbPgn').value.trim();if
  otbBusy=true;$('otbGo').disabled=true;
  analyseOtb(text,$('otbColor').value,(i,n)=>$('otbMsg').textContent=tx('Analyse par Stockfish : position {i} sur {n}… (reste sur la page)',{i:i+1,n}))
  .then(g=>{$('otbPgn').value='';$('otbMsg').innerHTML=txn(g.moments.length,'<span class="win">Partie analysée : {n} erreur à retravailler</span> dans le thème « Mes parties sur l\'échiquier ».','<span class="win">Partie analysée : {n} erreurs à retravailler</span> dans le thème « Mes parties sur l\'échiquier ».');
-  renderOtb();deckChosen=true;renderTraining(baseFilter(false));if(g.moments.length){$('tDeck').value='otb';buildQueue(false)}})
+  renderOtb();deckChosen=true;renderTraining(baseFilter(false));if(g.moments.length){setMode('coup');$('tDeck').value='otb';buildQueue(false)}})   // ses erreurs, tout de suite à rejouer
  .catch(e=>{$('otbMsg').innerHTML=`<span class="loss">${tx('Analyse impossible : {e}.',{e:esc(e.message||tx('Stockfish n\'a pas pu démarrer (connexion internet nécessaire)'))})}</span>`})
  .finally(()=>{otbBusy=false;$('otbGo').disabled=false})};
 // Suppression : une marque datée plutôt qu'un effacement, pour que la synchronisation ne fasse pas revenir la partie

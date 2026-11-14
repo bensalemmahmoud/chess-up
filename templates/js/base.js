@@ -137,7 +137,7 @@ function renderOpenings(G){const rows=openingRows(G,$('oGroup').value,+$('oMin')
 /* ---------- Stockfish ---------- */
 function renderSF(G,GA){const A=sfAgg(G);
  const analysedCads=[...new Set(D.games.filter(g=>g.sf).map(g=>g.cadence))];
- $('prioPanel').hidden=!A;
+ $('prioPanel').hidden=!A;$('endPanel').hidden=!A;$('partiesSf').hidden=!A;   // sections qui viennent de l'analyse Stockfish
  if(!A){$('sfBlock').hidden=true;$('sfMissing').hidden=false;
   $('sfMissing').textContent=analysedCads.length?tx('Aucune partie analysée dans cette sélection. Cadences analysées : {cads}. Pour en ajouter : {cmd}',{cads:analysedCads.join(', '),cmd:'python chess_dashboard_generator.py --cadences '+[...new Set([...analysedCads,$('fCadence').value||'blitz'])].join(',')}):tx('Aucune partie analysée par Stockfish. Lance : {cmd}',{cmd:'python chess_dashboard_generator.py'});return}
  $('sfBlock').hidden=false;$('sfMissing').hidden=true;

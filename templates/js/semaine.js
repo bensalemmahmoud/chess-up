@@ -30,7 +30,7 @@ function logAct(kind,extra={}){const id='j:'+dayKey(Date.now())+':'+DEVICE,r=srs
  if(extra.deck)(c.d??={})[extra.deck]=(c.d[extra.deck]||0)+1;
  const map=kind==='cours'?'vu':'st';   // cours ouverts, ou coups devinés dans une structure
  if(extra.st)(c[map]??={})[extra.st]=(c[map][extra.st]||0)+1;
- r.t=Date.now();srs[id]=r;saveSrs();if(semReady)renderSemaine()}
+ r.t=Date.now();srs[id]=r;saveSrs();if(semReady)renderSemaine();seanceTick()}
 // Activité d'une semaine, tous appareils : {coup, d:{…}, st:{…}, …}
 function weekAct(mk){const out={d:{},st:{}},days=weekDays(mk);
  for(const [k,v] of Object.entries(srs)){if(!k.startsWith('j:')||!days.has(k.split(':')[1]))continue;
@@ -137,3 +137,65 @@ $('semGoals').addEventListener('click',e=>{const b=e.target.closest('[data-go]')
 $('semBudget').addEventListener('change',e=>{srs['sem:budget']={t:Date.now(),h:+e.target.value};const p=srs['sem:'+weekKey(Date.now())];if(p){p.h=+e.target.value;p.t=Date.now()}saveSrs();renderSemaine()});
 const semPerso=()=>{const p=srs['sem:'+weekKey(Date.now())];p.perso={txt:$('semPerso').value.trim().slice(0,120),ok:$('semPersoOk').checked&&!!$('semPerso').value.trim()};p.t=Date.now();saveSrs();renderSemaine()};
 $('semPerso').addEventListener('change',semPerso);$('semPersoOk').addEventListener('change',semPerso);
+
+/* ---------- accueil : trois repères, chacun mène à sa section du diagnostic ---------- */
+function renderHome(){const cad=semCad(),G=D.games.filter(g=>g.cadence===cad&&g.elo_joueur),last=G[G.length-1],tiles=[];
+ if(last){const ago=dayKey(Date.now()-30*864e5),old=[...G].reverse().find(g=>g.date<ago),d=old?last.elo_joueur-old.elo_joueur:null;
+  tiles.push(['secResultats',tx('Elo {cad}',{cad:esc(cad)}),last.elo_joueur,d==null?'':tx('{d} en 30 jours',{d:(d>0?'+':'')+d})])}
+ const o=D.objectif;
+ if(o&&last)tiles.push(['secObjectif',tx('Objectif'),o.target,o.target>last.elo_joueur?tx('encore {n} points · ce qui t\'en sépare',{n:o.target-last.elo_joueur}):tx('atteint · voir le détail')]);
+ if(topCause)tiles.push(['secPrio',tx('Priorité n°1'),`<span class="tiletxt">${CAUSES[topCause]}</span>`,tx('là où tu perds le plus de points')]);
+ $('homeStats').innerHTML=tiles.map(([sec,l,v,h])=>`<button class="kpi tile" data-sec="${sec}"><div class="label">${l}</div><div class="value">${v}</div><div class="hint">${h} →</div></button>`).join('')}
+$('homeStats').addEventListener('click',e=>{const b=e.target.closest('[data-sec]');if(b)goSection(b.dataset.sec)});
+
+/* ---------- séance guidée : enchaîner les exercices du jour tirés de « Ma semaine » ----------
+   Une séance ≈ 20 minutes (3 par heure du temps choisi) : pour chaque objectif d'entraînement pas encore atteint, une
+   étape à sa mesure (positions du thème, lire le cours puis y rejouer ses erreurs, études, série). Chaque étape compte
+   les activités du journal depuis son début ; une fois son compte atteint, le bandeau propose l'étape suivante. */
+let seance=null;   // {steps:[{k, g, n, base, done}], i, fin}
+function seanceSteps(){const mk=weekKey(Date.now()),plan=srs['sem:'+mk],h=semBudget(),per=Math.max(1,h*3),steps=[];
+ for(const g of semGoals(plan,h)){const s=goalStatus(g,mk,h);if(s.done)continue;
+  const part=left=>Math.min(left,Math.max(g.k==='theme'?5:3,Math.ceil(s.target/per)));
+  if(g.k==='theme')steps.push({k:'theme',g,n:part(s.target-s.val)});
+  else if(g.k==='cours'){if(!s.opened)steps.push({k:'lire',g,n:0});if(s.target>s.val)steps.push({k:'cours',g,n:part(s.target-s.val)})}
+  else if(g.k==='etude')steps.push({k:'etude',g,n:Math.min(2,s.target-s.val)});
+  else if(g.k==='serie')steps.push({k:'serie',g,n:1})}
+ if(!steps.length)steps.push({k:'libre',g:{k:'theme',deck:'tout'},n:10});   // tout est atteint : séance libre sur tes erreurs
+ return steps}
+function seanceCount(st){const act=weekAct(weekKey(Date.now())),g=st.g;
+ return st.k==='theme'||st.k==='libre'?act.d[g.deck]||0:st.k==='cours'?(g.via==='err'?act.d['st_'+g.st]||0:act.st[g.st]||0)
+  :st.k==='etude'?act.etude||0:st.k==='serie'?act.serie||0:0}
+function seanceLabel(st){const n=st.n,g=st.g;
+ if(st.k==='theme')return txn(n,'Rejouer {n} position du thème « {t} »','Rejouer {n} positions du thème « {t} »',{t:esc(DECKS[g.deck]?.[0]?.replace(/^· /,'')||g.deck)});
+ if(st.k==='lire')return tx('Lire le cours « {c} » : son plan et ses exemples chez les maîtres',{c:esc(coName(g.st))});
+ if(st.k==='cours')return g.via==='err'?txn(n,'Rejouer {n} de tes erreurs dans la structure « {c} »','Rejouer {n} de tes erreurs dans la structure « {c} »',{c:esc(coName(g.st))})
+  :txn(n,'Deviner {n} coup d\'une partie de maître dans la structure « {c} »','Deviner {n} coups d\'une partie de maître dans la structure « {c} »',{c:esc(coName(g.st))});
+ if(st.k==='etude')return txn(n,'Faire {n} étude de position','Faire {n} études de position');
+ if(st.k==='serie')return tx('Réussir une série chronométrée en entier');
+ return txn(n,'Tous tes objectifs de la semaine sont atteints : séance libre, {n} position de tes erreurs','Tous tes objectifs de la semaine sont atteints : séance libre, {n} positions de tes erreurs')}
+function seanceGo(st){const g=st.g;
+ if(st.k==='theme'||st.k==='libre')semGo({k:'theme',deck:g.deck});
+ else if(st.k==='lire')semGo(g);
+ else if(st.k==='cours'){if(g.via==='err')semGo({k:'theme',deck:'st_'+g.st});
+  else{showTab('entrainement');setMode('devine');const i=PARTIES.findIndex(p=>p.st===g.st);if(i>=0&&(!dCur||dCur.i!==i)){$('dGame').value=String(i);dvStart(i)}}}
+ else semGo(g)}
+function seanceStart(){seance={steps:seanceSteps(),i:0,fin:false};seanceStep()}
+function seanceStep(){const st=seance.steps[seance.i];st.base=seanceCount(st);seanceGo(st);renderSeance()}
+function seanceNext(){const st=seance.steps[seance.i];st.done=Math.min(st.n,seanceCount(st)-st.base);
+ if(++seance.i<seance.steps.length)seanceStep();else{seance.fin=true;renderSeance();window.scrollTo(0,0)}}
+function seanceTick(){if(seance&&!seance.fin)renderSeance()}   // à chaque activité du journal
+function renderSeance(){const el=$('seance');el.hidden=!seance;if(!seance)return;
+ if(seance.fin){const mk=weekKey(Date.now()),plan=srs['sem:'+mk],h=semBudget(),gs=semGoals(plan,h),done=gs.filter(g=>goalStatus(g,mk,h).done).length;
+  el.className='panel seance done';
+  el.innerHTML=`<h3>${tx('Séance terminée ✓')}</h3><ul class="insights">${seance.steps.map(st=>`<li>${seanceLabel(st)}${st.n?` : <b>${st.done||0}/${st.n}</b>`:''}</li>`).join('')}</ul>`
+   +`<p>${txn(gs.length,'Ma semaine : {d} objectif atteint sur {n}.','Ma semaine : {d} objectifs atteints sur {n}.',{d:done})}</p>`
+   +`<div class="filters"><button data-se="semaine">${tx('Voir ma semaine')}</button><button data-se="stop">${tx('Fermer')}</button></div>`;return}
+ const st=seance.steps[seance.i],cnt=st.n?Math.min(st.n,seanceCount(st)-st.base):0,ok=st.n&&cnt>=st.n,lastStep=seance.i===seance.steps.length-1;
+ el.className='panel seance'+(ok?' done':'');
+ el.innerHTML=`<div class="rank">${tx('Séance du jour · étape {i} sur {n}',{i:seance.i+1,n:seance.steps.length})}</div><h3>${ok?'✓ ':''}${seanceLabel(st)}</h3>`
+  +(st.n?`<div class="gbar"><div style="width:${Math.round(100*cnt/st.n)}%"></div></div><div class="muted gdetail">${cnt} / ${st.n}</div>`:'')
+  +`<div class="filters"><button data-se="next" class="${ok||!st.n?'cta':''}">${st.k==='lire'?tx('J\'ai lu le cours →'):lastStep?(ok?tx('Terminer la séance ✓'):tx('Terminer la séance')):ok?tx('Étape suivante →'):tx('Passer cette étape')}</button>`
+  +`<button data-se="go">${tx('Revenir à l\'exercice')}</button><button data-se="stop">${tx('Arrêter')}</button></div>`}
+$('seance').addEventListener('click',e=>{const b=e.target.closest('[data-se]');if(!b||!seance)return;const a=b.dataset.se;
+ if(a==='next')seanceNext();else if(a==='go')seanceGo(seance.steps[seance.i]);else if(a==='semaine'){seance=null;renderSeance();showTab('accueil')}else{seance=null;renderSeance()}});
+$('semStart').addEventListener('click',seanceStart);

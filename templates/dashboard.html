@@ -34,6 +34,13 @@ a{color:#91caff}.note{font-size:12px;color:var(--muted);margin-top:10px}
 .goal{padding:10px 0;border-bottom:1px solid var(--line)}.goalhead{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;font-size:14px}.goalhead span{min-width:0;overflow-wrap:anywhere}
 .gbar{height:8px;background:var(--panel2);border-radius:4px;overflow:hidden;margin:6px 0 4px}.gbar>div{height:100%;background:var(--c1);transition:width .4s}
 .goal.done .gbar>div{background:var(--win)}.goal.done .goalhead span{color:#75c9a5}.goal.bad .gbar>div{background:var(--loss)}.gdetail{font-size:12px}
+.filters[hidden]{display:none}.gear{font-size:22px;line-height:1;text-decoration:none;color:var(--muted);padding:4px 6px}.gear:hover{color:var(--text)}
+.toc{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 2px}.toc button{background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:99px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}.toc button:hover{border-color:var(--c1)}
+.dsec{scroll-margin-top:56px}
+.modegroups{display:flex;flex-wrap:wrap;gap:10px 16px}.mgroup{display:flex;flex-direction:column;gap:4px;min-width:0;max-width:100%}.mglabel{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.modegroups .modes{margin-bottom:0}.modedesc{margin:8px 0 14px}
+.grid.home3{grid-template-columns:repeat(3,minmax(0,1fr))}.tile{text-align:left;cursor:pointer;color:var(--text);font:inherit}.tile:hover{border-color:var(--c1)}.tiletxt{display:block;font-size:17px;line-height:1.25}
+.seance{border-left:4px solid var(--c1);margin-bottom:14px}.seance.done{border-left-color:var(--win)}.seance h3{margin:4px 0 6px}
 .semperso{display:flex;gap:10px;align-items:center;border-bottom:0}.semperso input[type=checkbox]{width:18px;height:18px;flex:none}.semperso .syncout{font:inherit;font-size:14px;min-width:0}
 .boardnav{display:flex;gap:8px;justify-content:center;margin-top:8px}.boardnav button{flex:1;max-width:96px;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px;font-size:16px;cursor:pointer}
 .boardnav button:disabled{opacity:.3;cursor:default}
@@ -74,37 +81,37 @@ textarea.syncout{font:13px/1.4 monospace;resize:vertical;margin-top:6px}
 .tabs a span{max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .tabs a.active{border-top-color:var(--c1)}.tabs svg{width:22px;height:22px}
 .grid{gap:10px}.kpi{padding:12px 14px}.kpi .value{font-size:20px}.kpi .hint{font-size:11px}
-main{padding:14px 16px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.charts,.prio,.trainer,.rep{grid-template-columns:minmax(0,1fr)}.reptable{height:300px}.tabs a{font-size:10px}.chartbox{height:250px}}
+main{padding:14px 16px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.grid.home3{grid-template-columns:minmax(0,1fr)}.charts,.prio,.trainer,.rep{grid-template-columns:minmax(0,1fr)}.reptable{height:300px}.tabs a{font-size:10px}.chartbox{height:250px}}
 </style></head><body><main>
-<header><div>__HOME__<h1>Chess Analytics</h1><div class="muted" id="subtitle"></div></div><div class="muted" id="generated"></div><select id="langue" aria-label="Langue" title="Langue"></select></header>
-<nav class="tabs" id="tabs"><a href="#accueil" data-tab="accueil"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z"/></svg><span>Accueil</span></a><a href="#statistiques" data-tab="statistiques"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M2 20h20"/></svg><span>Statistiques</span></a><a href="#analyse" data-tab="analyse"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><span>Analyse</span></a><a href="#entrainement" data-tab="entrainement"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg><span>S'entraîner</span></a><a href="#adversaire" data-tab="adversaire"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg><span>Adversaire</span></a><a href="#historique" data-tab="historique"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg><span>Historique</span></a></nav>
-<div class="filters"><label>Cadence <select id="fCadence"></select></label><label>Période <select id="fPeriod">
+<header><div>__HOME__<h1>Chess Analytics</h1><div class="muted" id="subtitle"></div></div><div class="muted" id="generated"></div><a href="#reglages" class="gear" title="Réglages" aria-label="Réglages">⚙</a></header>
+<nav class="tabs" id="tabs"><a href="#accueil" data-tab="accueil"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z"/></svg><span>Accueil</span></a><a href="#diagnostic" data-tab="diagnostic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M2 20h20"/></svg><span>Diagnostic</span></a><a href="#entrainement" data-tab="entrainement"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg><span>S'entraîner</span></a><a href="#parties" data-tab="parties"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg><span>Parties</span></a><a href="#adversaire" data-tab="adversaire"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg><span>Adversaire</span></a></nav>
+<div class="filters" id="globalFilters"><label>Cadence <select id="fCadence"></select></label><label>Période <select id="fPeriod">
 <option value="">Toute la période</option><option value="30">30 derniers jours</option><option value="90">3 derniers mois</option><option value="180">6 derniers mois</option></select></label>
 <label><input type="checkbox" id="fRated"> Parties classées uniquement</label><span class="muted" id="fCount"></span></div>
 
 <div class="tab" data-tab="accueil">
-<div class="grid" id="kpis"></div>
-<section class="panel" id="semPanel" style="margin-bottom:14px"><div class="phead"><div><h2>Ma semaine</h2><p class="sub" id="semSub"></p></div>
+<section class="panel" id="semPanel" style="margin-bottom:14px"><div class="phead"><div><h2>Ma semaine</h2><p class="sub" id="semSub"></p><button class="cta" id="semStart">Commencer ma séance →</button></div>
 <label class="muted">Temps d'entraînement <select id="semBudget" class="select"><option value="1">1 h par semaine</option><option value="2">2 h par semaine</option><option value="4">4 h par semaine</option></select></label></div>
 <div id="semGoals"></div>
 <div class="goal semperso"><label><input type="checkbox" id="semPersoOk" aria-label="Objectif perso atteint"></label><input id="semPerso" class="syncout" maxlength="120" placeholder="Mon objectif perso de la semaine (ex. 2 parties en club, relire mes notes d'ouverture…)"></div>
 <div class="note" id="semHist"></div></section>
-<section class="panel" id="prioPanel"><div class="phead"><div><h2>Tes 3 priorités d'entraînement</h2><p class="sub" id="prioSub"></p></div><a class="cta" href="#entrainement" id="cta">S'entraîner →</a></div><div class="prio" id="prio"></div></section>
-<section class="panel" id="objPanel" style="margin-top:14px" hidden><h2 id="objTitle"></h2><p class="sub" id="objSub"></p>
-<p id="objSummary"></p><div class="tablewrap"><table id="objTable"></table></div>
-<div class="note">Calculé sur les mêmes critères Stockfish que tes parties. Les indicateurs sont classés du plus gros écart au plus petit. « Dans la marge du hasard » : avec ce nombre de parties, l'écart pourrait n'être que de la chance.</div></section>
-<section class="panel" style="margin-top:14px"><h2>Constats clés</h2><p class="sub">Générés automatiquement à partir des parties filtrées.</p><ul class="insights" id="insights"></ul></section>
+<div class="grid home3" id="homeStats"></div>
 </div>
 
-<div class="tab" data-tab="statistiques" hidden>
-<section class="panel" id="repPanel"><h2>Mon répertoire</h2><p class="sub">Tes ouvertures coup par coup : ce que tu joues, ce que jouent tes adversaires, ton score, et l'avis de Stockfish sur tes coups (sur tes parties analysées). Clique sur un coup pour avancer.</p>
-<div class="filters"><label>Avec les <select id="repColor"><option>Blancs</option><option>Noirs</option></select></label></div>
-<div class="rep"><div><div class="board mini" id="repBoard"></div>
-<div class="boardnav"><button id="repStart" aria-label="Début" title="Début">⏮</button><button id="repBack" aria-label="Coup précédent" title="Coup précédent">◀</button><button id="repFwd" aria-label="Coup suivant" title="Coup suivant">▶</button></div></div>
-<div><div class="reppath" id="repPath"></div><p id="repInfo" class="sub repinfo"></p>
-<div class="tablewrap reptable"><table><thead><tr id="repHead"></tr></thead><tbody id="repMoves"></tbody></table></div></div></div>
-<div class="note">Les positions où ton coup habituel est imprécis deviennent un thème d'entraînement : « Mon répertoire d'ouvertures ».</div></section>
+<div class="tab" data-tab="diagnostic" hidden>
+<nav class="toc" id="diagToc"><button data-sec="secPrio">Priorités</button><button data-sec="secObjectif">Objectif +200</button><button data-sec="secResultats">Résultats</button><button data-sec="secErreurs">Erreurs</button><button data-sec="secOuvertures">Ouvertures</button><button data-sec="secFinales">Finales</button><button data-sec="secComportement">Comportement</button></nav>
+<div id="secPrio" class="dsec">
+<section class="panel" id="prioPanel"><div class="phead"><div><h2>Tes 3 priorités d'entraînement</h2><p class="sub" id="prioSub"></p></div><a class="cta" href="#entrainement" id="cta">S'entraîner →</a></div><div class="prio" id="prio"></div></section>
+</div>
+<div id="secObjectif" class="dsec">
+<div class="part">Objectif +200</div>
+<section class="panel" id="objPanel" hidden><h2 id="objTitle"></h2><p class="sub" id="objSub"></p>
+<p id="objSummary"></p><div class="tablewrap"><table id="objTable"></table></div>
+<div class="note">Calculé sur les mêmes critères Stockfish que tes parties. Les indicateurs sont classés du plus gros écart au plus petit. « Dans la marge du hasard » : avec ce nombre de parties, l'écart pourrait n'être que de la chance.</div></section>
+</div>
+<div id="secResultats" class="dsec">
 <div class="part">Résultats</div>
+<div class="grid" id="kpis"></div>
 <div class="charts">
 <section class="panel"><h2>Score par cadence</h2><p class="sub">Victoire = 1, nulle = ½. Toutes cadences, autres filtres appliqués.</p><div class="chartbox"><canvas id="cadenceChart"></canvas></div><table id="cadenceTable"></table></section>
 <section class="panel"><h2>Blancs contre Noirs</h2><p class="sub">Score par couleur dans la sélection.</p><div class="chartbox"><canvas id="colorChart"></canvas></div><table id="colorTable"></table></section>
@@ -112,22 +119,10 @@ main{padding:14px 16px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.char
 <section class="panel"><h2>Évolution de l'Elo</h2><p class="sub">Dernier Elo de chaque semaine, une courbe par cadence.</p><div class="chartbox"><canvas id="eloChart"></canvas></div></section>
 <section class="panel full"><h2>Parties par mois</h2><div class="chartbox" style="height:240px"><canvas id="monthlyChart"></canvas></div></section>
 </div>
-<div class="part">Comportement</div>
-<div class="charts">
-<section class="panel"><h2>Après une victoire ou une défaite</h2><p class="sub" id="tiltSub"></p><div class="chartbox"><canvas id="tiltChart"></canvas></div></section>
-<section class="panel"><h2>Au fil de la session</h2><p class="sub" id="sessSub"></p><div class="chartbox"><canvas id="sessChart"></canvas></div></section>
-<section class="panel full"><h2>Selon l'heure de la partie</h2><p class="sub" id="hourSub"></p><div class="chartbox" style="height:240px"><canvas id="hourChart"></canvas></div></section>
+<section class="panel" style="margin-top:14px"><h2>Constats clés</h2><p class="sub">Générés automatiquement à partir des parties filtrées.</p><ul class="insights" id="insights"></ul></section>
 </div>
-<div class="note">Barre verte ou rouge : score nettement au-dessus ou au-dessous de ton score global. Barre grise : l'écart reste dans la marge du hasard pour ce nombre de parties.</div>
-<div class="part">Ouvertures</div>
-<section class="panel"><h2>Tes ouvertures</h2><p class="sub">L'évaluation Stockfish après 12 coups indique si l'ouverture te laisse une position saine (en pions, de ton point de vue).</p>
-<div class="filters"><label>Regrouper par <select id="oGroup"><option value="famille">famille</option><option value="variante">variante</option></select></label>
-<label>Minimum <select id="oMin"><option>3</option><option selected>5</option><option>10</option><option>20</option></select> parties</label></div>
-<div class="tablewrap"><table><thead><tr id="oHead"></tr></thead><tbody id="openings"></tbody></table></div>
-<div class="note">Sous 10 parties, les résultats d'une ligne fluctuent beaucoup : à lire comme des pistes, pas des verdicts.</div></section>
-</div>
-
-<div class="tab" data-tab="analyse" hidden>
+<div id="secErreurs" class="dsec">
+<div class="part">Erreurs</div>
 <div id="sfMissing" class="panel empty" hidden></div>
 <div id="sfBlock">
 <div class="grid" id="sfKpis"></div>
@@ -141,22 +136,44 @@ main{padding:14px 16px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.char
 <section class="panel" style="margin-top:14px"><h2>Rapid contre blitz : les erreurs ne se ressemblent pas</h2><p class="sub">Toutes les cadences analysées, autres filtres appliqués.</p><div class="tablewrap"><table id="cmpTable"></table></div></section>
 <section class="panel" style="margin-top:14px"><h2>Dans quelles positions tu te trompes</h2><p class="sub" id="ctxSub"></p><div class="tablewrap"><table id="ctxTable"></table></div>
 <div class="note">Éléments détectés sur l'échiquier au moment où tu joues (hors ouverture). En rouge : nettement au-dessus de ta moyenne, au-delà de la marge du hasard. Ces situations sont mises en avant dans « Étudier la position », et les erreurs liées au roi ont leurs thèmes d'entraînement.</div></section>
-<section class="panel" style="margin-top:14px"><h2>Tes finales</h2><p class="sub" id="endSub"></p><div class="tablewrap"><table id="endTable"></table></div></section>
-<section class="panel" style="margin-top:14px"><h2>Moments critiques</h2><p class="sub">Tes erreurs et gaffes, avec le meilleur coup de Stockfish. « Position » ouvre l'échiquier d'analyse Lichess sur la position, avant ton coup.</p>
-<div class="filters"><select id="mType"><option value="">Erreurs et gaffes</option><option value="gaf">Gaffes seulement</option><option value="occ">Occasions manquées</option><option value="mm">Mats manqués</option><option value="zt">En zeitnot</option></select>
-<select id="mPhase"><option value="">Toutes les phases</option><option value="ouverture">Ouverture</option><option value="milieu">Milieu de partie</option><option value="finale">Finale</option></select>
-<select id="mMotif"><option value="">Tous les motifs</option></select><span class="muted" id="mCount"></span></div>
-<div class="tablewrap"><table><thead><tr><th>Date</th><th>Cadence</th><th>Coup</th><th>Joué</th><th>Meilleur</th><th>Chances de gain</th><th>Phase</th><th>Pendule</th><th></th></tr></thead><tbody id="moments"></tbody></table></div></section>
-<section class="panel" style="margin-top:14px"><h2>Positions gagnantes non converties</h2><p class="sub" id="lostSub"></p>
-<div class="tablewrap"><table><thead><tr><th>Date</th><th>Cadence</th><th>Adversaire</th><th class="num">Chances max.</th><th>Résultat</th><th>Fin</th><th></th></tr></thead><tbody id="lostWins"></tbody></table></div></section>
+</div>
+</div>
+<div id="secOuvertures" class="dsec">
+<div class="part">Ouvertures</div>
+<section class="panel" id="repPanel"><h2>Mon répertoire</h2><p class="sub">Tes ouvertures coup par coup : ce que tu joues, ce que jouent tes adversaires, ton score, et l'avis de Stockfish sur tes coups (sur tes parties analysées). Clique sur un coup pour avancer.</p>
+<div class="filters"><label>Avec les <select id="repColor"><option>Blancs</option><option>Noirs</option></select></label></div>
+<div class="rep"><div><div class="board mini" id="repBoard"></div>
+<div class="boardnav"><button id="repStart" aria-label="Début" title="Début">⏮</button><button id="repBack" aria-label="Coup précédent" title="Coup précédent">◀</button><button id="repFwd" aria-label="Coup suivant" title="Coup suivant">▶</button></div></div>
+<div><div class="reppath" id="repPath"></div><p id="repInfo" class="sub repinfo"></p>
+<div class="tablewrap reptable"><table><thead><tr id="repHead"></tr></thead><tbody id="repMoves"></tbody></table></div></div></div>
+<div class="note">Les positions où ton coup habituel est imprécis deviennent un thème d'entraînement : « Mon répertoire d'ouvertures ».</div></section>
+<section class="panel"><h2>Tes ouvertures</h2><p class="sub">L'évaluation Stockfish après 12 coups indique si l'ouverture te laisse une position saine (en pions, de ton point de vue).</p>
+<div class="filters"><label>Regrouper par <select id="oGroup"><option value="famille">famille</option><option value="variante">variante</option></select></label>
+<label>Minimum <select id="oMin"><option>3</option><option selected>5</option><option>10</option><option>20</option></select> parties</label></div>
+<div class="tablewrap"><table><thead><tr id="oHead"></tr></thead><tbody id="openings"></tbody></table></div>
+<div class="note">Sous 10 parties, les résultats d'une ligne fluctuent beaucoup : à lire comme des pistes, pas des verdicts.</div></section>
+</div>
+<div id="secFinales" class="dsec">
+<div class="part">Finales</div>
+<section class="panel" id="endPanel"><h2>Tes finales</h2><p class="sub" id="endSub"></p><div class="tablewrap"><table id="endTable"></table></div></section>
+</div>
+<div id="secComportement" class="dsec">
+<div class="part">Comportement</div>
+<div class="charts">
+<section class="panel"><h2>Après une victoire ou une défaite</h2><p class="sub" id="tiltSub"></p><div class="chartbox"><canvas id="tiltChart"></canvas></div></section>
+<section class="panel"><h2>Au fil de la session</h2><p class="sub" id="sessSub"></p><div class="chartbox"><canvas id="sessChart"></canvas></div></section>
+<section class="panel full"><h2>Selon l'heure de la partie</h2><p class="sub" id="hourSub"></p><div class="chartbox" style="height:240px"><canvas id="hourChart"></canvas></div></section>
+</div>
+<div class="note">Barre verte ou rouge : score nettement au-dessus ou au-dessous de ton score global. Barre grise : l'écart reste dans la marge du hasard pour ce nombre de parties.</div>
 </div>
 </div>
 
 <div class="tab" data-tab="entrainement" hidden>
-<div class="modes" id="modes"><button data-mode="coup" class="active">Trouver le coup</button><button data-mode="cours">Cours</button><button data-mode="etude">Étudier la position</button><button data-mode="devine">Deviner le coup</button><button data-mode="finales">Finales de référence</button><button data-mode="serie">Série chronométrée</button><button data-mode="aveugle">Calcul à l'aveugle</button></div>
+<section class="panel seance" id="seance" hidden></section>
+<div class="modegroups" id="modes"><div class="mgroup"><span class="mglabel">Mes erreurs</span><div class="modes"><button data-mode="coup" class="active">Trouver le coup</button><button data-mode="serie">Série chronométrée</button><button data-mode="otb">Mes parties sur l'échiquier</button></div></div><div class="mgroup"><span class="mglabel">Comprendre</span><div class="modes"><button data-mode="cours">Cours</button><button data-mode="etude">Étudier la position</button><button data-mode="devine">Deviner le coup</button></div></div><div class="mgroup"><span class="mglabel">Technique</span><div class="modes"><button data-mode="finales">Finales de référence</button><button data-mode="aveugle">Calcul à l'aveugle</button></div></div></div><p class="sub modedesc" id="modeDesc"></p>
 <div id="modeCoup">
 <div id="trMissing" class="panel empty" hidden></div>
-<section class="panel" id="trBlock"><h2>Séance d'entraînement</h2><p class="sub">Tes propres positions critiques : trouve le coup de Stockfish. Une position ratée revient dans la séance ; une position réussie revient de plus en plus tard (1, 3, 7, 16 puis 35 jours). La progression est enregistrée dans ce navigateur.</p>
+<section class="panel" id="trBlock"><h2>Trouver le coup</h2><p class="sub">Tes propres positions critiques : trouve le coup de Stockfish. Une position ratée revient dans la séance ; une position réussie revient de plus en plus tard (1, 3, 7, 16 puis 35 jours). La progression est enregistrée dans ce navigateur.</p>
 <div class="filters"><label>Thème <select id="tDeck"></select></label><span class="muted" id="tStats"></span></div>
 <div class="trainer"><div><div class="board" id="board"></div><div class="evalbar" id="tEval" hidden title="Tes chances de gain selon Stockfish"><div></div><span></span></div>
 <div class="boardnav"><button id="tBack" aria-label="Coup précédent" title="Coup précédent">◀</button><button id="tFwd" aria-label="Coup suivant" title="Coup suivant">▶</button></div></div>
@@ -164,7 +181,9 @@ main{padding:14px 16px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.char
 <div class="filters"><button id="tHint">Indice</button><button id="tSolve">Solution</button><button id="tNext">Position suivante →</button><button id="tWhy" hidden>Pourquoi ?</button><button id="tPlay" hidden>Jouer la suite contre Stockfish</button><label id="tLevelBox" hidden>Niveau <select id="tLevel" class="select"></select></label></div>
 <div id="tWhyOut"></div><div class="note" id="tLinks"></div></div></div>
 <div class="note">Clique sur une pièce, puis sur sa case d'arrivée. Le meilleur coup de Stockfish est validé, ainsi que les autres coups qu'il juge presque aussi bons. Un coup hors de ses 3 meilleurs n'est pas validé, même s'il peut être correct : vérifie-le avec le lien « Analyse ». Une fois l'exercice terminé, « Pourquoi ? » montre la suite de Stockfish et ce qu'elle change (matériel, structure de pions, roi, pièces), la menace adverse et la réfutation du coup joué en partie ; « Jouer la suite » te fait continuer la partie contre Stockfish.</div></section>
-<section class="panel" style="margin-top:14px"><h2>Mes parties sur l'échiquier</h2><p class="sub">Une partie jouée en club ou en tournoi : colle-la au format PGN, ou seulement ses coups (« 1. e4 e5 2. Cf3 Cc6… », notation française ou anglaise). Stockfish l'analyse dans ce navigateur (environ une minute et demie, reste sur la page) et tes erreurs deviennent le thème « Mes parties sur l'échiquier ». Rien n'est envoyé : la partie reste dans ce navigateur, et passe dans le lien de synchronisation.</p>
+</div>
+<div id="modeOtb" hidden>
+<section class="panel"><h2>Mes parties sur l'échiquier</h2><p class="sub">Une partie jouée en club ou en tournoi : colle-la au format PGN, ou seulement ses coups (« 1. e4 e5 2. Cf3 Cc6… », notation française ou anglaise). Stockfish l'analyse dans ce navigateur (environ une minute et demie, reste sur la page) et tes erreurs deviennent le thème « Mes parties sur l'échiquier ». Rien n'est envoyé : la partie reste dans ce navigateur, et passe dans le lien de synchronisation.</p>
 <textarea id="otbPgn" class="syncout" rows="5" placeholder="[White &quot;…&quot;]  [Black &quot;…&quot;]  [Date &quot;2026.10.25&quot;]  1. e4 e5 2. Cf3 Cc6 3. Fb5 …"></textarea>
 <div class="filters"><label>Je jouais les <select id="otbColor"><option value="w">Blancs</option><option value="b">Noirs</option></select></label><button id="otbGo">Analyser</button><span class="muted" id="otbMsg"></span></div>
 <div class="tablewrap"><table id="otbList"></table></div>
@@ -231,8 +250,6 @@ main{padding:14px 16px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.char
 <section class="panel" style="margin-top:14px"><h2>Mes scores par thème</h2><p class="sub" id="eScoresSub"></p><div class="tablewrap"><table id="eScores"></table></div>
 <div class="chartbox" id="eChartBox" style="margin-top:14px" hidden><canvas id="eChart"></canvas></div></section>
 </div>
-<section class="panel" style="margin-top:14px"><h2>Synchroniser mes appareils</h2><p class="sub">Ta progression (positions et études) est enregistrée dans ce navigateur. Pour la retrouver sur ton téléphone ou ton ordinateur, crée un lien ici et ouvre-le sur l'autre appareil : les deux progressions sont fusionnées.</p>
-<div class="filters"><button id="syncBtn">Créer un lien de transfert</button><span class="muted" id="syncMsg"></span></div><input id="syncOut" class="syncout" readonly hidden></section>
 </div>
 
 <div class="tab" data-tab="adversaire" hidden>
@@ -241,10 +258,25 @@ main{padding:14px 16px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.char
 <div id="oppOut"></div>
 </div>
 
-<div class="tab" data-tab="historique" hidden>
+<div class="tab" data-tab="parties" hidden>
 <section class="panel"><h2>Historique des parties</h2><div class="filters"><input id="search" placeholder="Filtrer adversaire / ouverture…"><select id="resultFilter"><option value="">Tous les résultats</option><option>Victoire</option><option>Nulle</option><option>Défaite</option></select><button id="csvBtn">Télécharger CSV</button></div>
 <div class="tablewrap"><table><thead><tr><th>Date</th><th>Cadence</th><th>Couleur</th><th>Résultat</th><th>Fin</th><th class="num">Elo</th><th>Adversaire</th><th class="num">Elo adv.</th><th class="num">Précision</th><th class="num">Gaffes</th><th>Ouverture</th><th>Lien</th></tr></thead><tbody id="games"></tbody></table></div>
 <div class="note">Données issues de l'API publique __SITE__. « Précision » : celle de __SITE__ si disponible, sinon l'estimation Stockfish (marquée *).</div></section>
+<div id="partiesSf">
+<section class="panel" style="margin-top:14px"><h2>Moments critiques</h2><p class="sub">Tes erreurs et gaffes, avec le meilleur coup de Stockfish. « Position » ouvre l'échiquier d'analyse Lichess sur la position, avant ton coup.</p>
+<div class="filters"><select id="mType"><option value="">Erreurs et gaffes</option><option value="gaf">Gaffes seulement</option><option value="occ">Occasions manquées</option><option value="mm">Mats manqués</option><option value="zt">En zeitnot</option></select>
+<select id="mPhase"><option value="">Toutes les phases</option><option value="ouverture">Ouverture</option><option value="milieu">Milieu de partie</option><option value="finale">Finale</option></select>
+<select id="mMotif"><option value="">Tous les motifs</option></select><span class="muted" id="mCount"></span></div>
+<div class="tablewrap"><table><thead><tr><th>Date</th><th>Cadence</th><th>Coup</th><th>Joué</th><th>Meilleur</th><th>Chances de gain</th><th>Phase</th><th>Pendule</th><th></th></tr></thead><tbody id="moments"></tbody></table></div></section>
+<section class="panel" style="margin-top:14px"><h2>Positions gagnantes non converties</h2><p class="sub" id="lostSub"></p>
+<div class="tablewrap"><table><thead><tr><th>Date</th><th>Cadence</th><th>Adversaire</th><th class="num">Chances max.</th><th>Résultat</th><th>Fin</th><th></th></tr></thead><tbody id="lostWins"></tbody></table></div></section>
+</div>
+</div>
+
+<div class="tab" data-tab="reglages" hidden>
+<section class="panel"><h2>Réglages</h2><div class="filters"><label>Langue <select id="langue" aria-label="Langue" title="Langue"></select></label></div><p class="sub">Le temps d'entraînement par semaine se règle dans « Ma semaine », sur l'accueil.</p></section>
+<section class="panel" style="margin-top:14px"><h2>Synchroniser mes appareils</h2><p class="sub">Ta progression (positions et études) est enregistrée dans ce navigateur. Pour la retrouver sur ton téléphone ou ton ordinateur, crée un lien ici et ouvre-le sur l'autre appareil : les deux progressions sont fusionnées.</p>
+<div class="filters"><button id="syncBtn">Créer un lien de transfert</button><span class="muted" id="syncMsg"></span></div><input id="syncOut" class="syncout" readonly hidden></section>
 </div>
 </main>
 <script>

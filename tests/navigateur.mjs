@@ -119,6 +119,30 @@ const SCENARIOS = [
     document.querySelector('#semGoals [data-go="'+plan.goals.indexOf(th)+'"]').click();
     __t.ok(!$('modeCoup').hidden&&$('tDeck').value===th.deck,'« Y aller » ouvre le thème dans Trouver le coup');
     return goalLabel(th,4).replace(/<[^>]+>/g,'')`],
+  ['navigation : 5 onglets, anciens liens, filtres, sommaire, réglages, repères de l\'accueil', false, `
+    const shown=t=>!document.querySelector('.tab[data-tab="'+t+'"]').hidden;
+    __t.ok(document.querySelectorAll('#tabs a').length===5,'5 onglets');
+    showTab('analyse');__t.ok(shown('diagnostic')&&$('globalFilters').offsetParent,'ancien lien #analyse : diagnostic, avec les filtres');
+    document.querySelector('#diagToc [data-sec="secComportement"]').click();__t.ok($('secComportement').offsetParent,'sommaire du diagnostic');
+    showTab('historique');__t.ok(shown('parties')&&$('globalFilters').offsetParent,'ancien lien #historique : parties, avec les filtres');
+    showTab('entrainement');__t.ok(!$('globalFilters').offsetParent,'pas de filtres à l\\'entraînement');
+    setMode('otb');__t.ok(!$('modeOtb').hidden&&$('modeDesc').textContent.length>10,'« Mes parties sur l\\'échiquier » : un mode à part, décrit');
+    document.querySelector('.gear').click();await __t.wait(()=>shown('reglages'),3000,'réglages');
+    __t.ok($('langue').offsetParent&&$('syncBtn').offsetParent,'langue et synchronisation dans les réglages');
+    showTab('accueil');const tiles=document.querySelectorAll('#homeStats .tile');__t.ok(tiles.length>=2,'repères de l\\'accueil : '+tiles.length);
+    tiles[0].click();__t.ok(shown('diagnostic'),'un repère mène au diagnostic');
+    return tiles.length+' repères'`],
+  ['séance guidée : étapes tirées de « Ma semaine », compte, étape suivante, bilan', false, `
+    showTab('accueil');$('semStart').click();
+    __t.ok(seance&&!$('seance').hidden&&!document.querySelector('.tab[data-tab="entrainement"]').hidden,'séance ouverte dans l\\'entraînement');
+    const st=seance.steps[0];__t.ok(['theme','libre'].includes(st.k)&&st.n>0,'première étape : positions du thème');
+    __t.ok(!$('seance').classList.contains('done'),'étape en cours');
+    for(let i=0;i<st.n;i++)logAct('coup',{deck:st.g.deck,ok:true});
+    __t.ok($('seance').classList.contains('done'),'étape comptée et terminée');
+    let n=0;while(!seance.fin&&n++<10)document.querySelector('#seance [data-se="next"]').click();
+    __t.ok(seance.fin&&seance.steps[0].done===st.n,'bilan de la séance');
+    document.querySelector('#seance [data-se="stop"]').click();__t.ok($('seance').hidden&&seance===null,'bandeau fermé');
+    return seance===null?st.n+' positions, '+n+' étapes ensuite':''`],
   ['finales : conseil, puis meilleur coup de Stockfish', true, `
     setMode('finales');await __t.wait(()=>fCur,3000,'finale');__t.ok($('fHint').textContent==='Conseil','bouton Conseil');
     $('fHint').click();__t.ok(!$('fConseil').hidden&&$('fHint').textContent==='Meilleur coup','conseil affiché');

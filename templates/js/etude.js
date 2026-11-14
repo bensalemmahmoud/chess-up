@@ -291,13 +291,24 @@ $('eBoard').addEventListener('click',e=>{const c=eCur,el=e.target.closest('.sq')
 $('eNext').onclick=()=>nextStudy();
 ['eSrc','ePhase'].forEach(id=>$(id).addEventListener('change',()=>buildStudyQueue(false)));
 
-/* Modes de l'onglet : trouver le coup (entrainement.js), étudier la position, deviner le coup (devine.js), finales de
-   référence (finales.js), série chronométrée (serie.js), calcul à l'aveugle (aveugle.js). Chaque section s'appelle
-   « mode » + nom ; MODE_OPEN[nom] prépare un mode à sa première ouverture. Le mode retenu est choisi dans demarrage.js. */
+/* Modes de l'onglet, rangés en trois familles dans #modes : mes erreurs (trouver le coup — entrainement.js —, série
+   chronométrée — serie.js —, mes parties sur l'échiquier — partie.js), comprendre (cours — cours.js —, étudier la
+   position, deviner le coup — devine.js), technique (finales de référence — finales.js —, calcul à l'aveugle —
+   aveugle.js). Chaque section s'appelle « mode » + nom ; MODE_OPEN[nom] prépare un mode à sa première ouverture ;
+   MODE_DESC[nom] dit à quoi il sert. Le mode retenu est choisi dans demarrage.js. */
 const MODE_OPEN={},MODES=[...document.querySelectorAll('#modes button')].map(b=>b.dataset.mode);
+const MODE_DESC={coup:tx('Rejoue tes propres erreurs jusqu\'à trouver le bon coup : elles reviennent de plus en plus tard quand tu les réussis.'),
+ serie:tx('Dix de tes positions critiques à enchaîner vite : la même série revient tant qu\'elle n\'est pas réussie en entier.'),
+ otb:tx('Tes parties jouées en club ou en tournoi, analysées dans ce navigateur : leurs erreurs rejoignent tes exercices.'),
+ cours:tx('Les plans de chaque structure de pions, illustrés par des parties de maîtres, en commençant par celle où tu te trompes le plus.'),
+ etude:tx('Évaluer une position calme et repérer ses forces et ses faiblesses, avant de choisir un coup.'),
+ devine:tx('Rejoue une partie de maître à sa place, coup après coup : la meilleure école des plans.'),
+ finales:tx('Les finales à connaître par cœur, jouées contre Stockfish.'),
+ aveugle:tx('Lis une suite de coups sans que l\'échiquier bouge, puis trouve le meilleur coup : l\'entraînement du calcul.')};
 const modeId=m=>'mode'+m[0].toUpperCase()+m.slice(1);
 function setMode(m){if(!MODES.includes(m))m='coup';MODES.forEach(x=>$(modeId(x)).hidden=x!==m);
  document.querySelectorAll('#modes button').forEach(b=>b.classList.toggle('active',b.dataset.mode===m));
+ $('modeDesc').textContent=MODE_DESC[m]||'';
  try{localStorage.setItem('chess-up:mode',m)}catch(e){}
  MODE_OPEN[m]?.();drawPendingCharts()}
 document.querySelectorAll('#modes button').forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
