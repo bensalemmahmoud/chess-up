@@ -145,6 +145,11 @@ class Translations(unittest.TestCase):
                          "3 games · 2 analysed · 10 training positions")
         self.assertEqual(gen.localize("<p>Mis à jour le X.</p>", "fr"), "<p>Mis à jour le X.</p>")
 
+    def test_default_is_browser_language(self):
+        """Sans --langue, rien n'est imposé : la page suit la langue du navigateur du visiteur."""
+        self.assertIn("LANGUES.includes(null)", gen.dashboard_page())
+        self.assertIn("TXT['']", gen.encrypt_page("x", "pw", "bob"))
+
     def test_lock_page_language(self):
         page = gen.encrypt_page("x", "pw", "bob", "en")
         self.assertIn("TXT['en']", page)

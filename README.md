@@ -69,7 +69,7 @@ Par défaut, le script prend **les 6 derniers mois** et analyse avec Stockfish *
 | `--no-analysis` | ne lance pas Stockfish ; utilise seulement les analyses déjà faites | |
 | `--refresh` | re-télécharge aussi les parties déjà en cache | |
 | `--pgn` | avec `--site lichess` : lit les parties dans un export PGN au lieu de l'API (compte fermé) | `--pgn pgn/lichess_bob.pgn` |
-| `--langue` | langue du rapport : `fr` (défaut) ou `en` ; chaque visiteur peut aussi changer avec le sélecteur FR/EN en haut du rapport | `--langue en` |
+| `--langue` | le rapport existe toujours en français et en anglais : chaque visiteur le voit dans la langue de son navigateur et peut changer avec le sélecteur FR/EN en haut. `--langue` impose la langue de la première visite (et celle de la page d'accueil, en français sinon) | `--langue en` |
 
 ### Combien de temps ça prend ?
 
@@ -128,7 +128,7 @@ La première exécution après une mise à jour peut être plus longue : Stockfi
 python chess_dashboard_generator.py --amis amis.txt
 ```
 
-génère tous les rapports, puis la page d'accueil `rapports/index.html` avec un lien vers chaque joueur. `amis.txt` reste sur ton PC : il n'est pas envoyé sur GitHub. Les options données en ligne de commande (`--no-analysis`, `--refresh`, `--workers`) s'appliquent à tous les joueurs ; `--langue` donne la langue par défaut des rapports (une ligne peut avoir la sienne) et celle de la page d'accueil.
+génère tous les rapports, puis la page d'accueil `rapports/index.html` avec un lien vers chaque joueur. `amis.txt` reste sur ton PC : il n'est pas envoyé sur GitHub. Les options données en ligne de commande (`--no-analysis`, `--refresh`, `--workers`) s'appliquent à tous les joueurs ; `--langue` impose la langue de première visite des rapports (une ligne peut avoir la sienne) et celle de la page d'accueil.
 
 ## Publier les rapports en ligne, chacun avec son mot de passe
 

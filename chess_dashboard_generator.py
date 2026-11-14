@@ -438,7 +438,8 @@ def build_parser():
     parser.add_argument("--publier", action="store_true",
                         help="avec --amis : écrit dans site/ les rapports chiffrés avec le mot de passe de chaque joueur, prêts à mettre en ligne")
     parser.add_argument("--langue", choices=LANGUES, default=None,
-                        help="langue du rapport et des pages d'accueil : fr ou en (défaut : fr ; chaque visiteur peut aussi changer dans le rapport)")
+                        help="impose la langue affichée à la première visite du rapport et celle des pages d'accueil : fr ou en "
+                             "(défaut : la langue du navigateur de chaque visiteur ; chacun peut changer dans le rapport)")
     parser.add_argument("--nouveau-mot-de-passe", dest="new_password", action="store_true", help="affiche un mot de passe aléatoire solide et s'arrête")
     return parser
 
@@ -853,7 +854,7 @@ def run(args):
     """Génère le rapport d'un joueur et renvoie son résumé pour la page d'accueil."""
     global USERNAME
     USERNAME = args.user.strip().lower()
-    lang = getattr(args, "langue", None) or "fr"
+    lang = getattr(args, "langue", None)   # None : la langue du navigateur de chaque visiteur
     lichess = args.site == "lichess"
     site_label = "Lichess" if lichess else "Chess.com"
     out_dir = (SITE_DIR if args.publier else REPORTS_DIR) / (f"lichess_{USERNAME}" if lichess else USERNAME)
@@ -965,7 +966,7 @@ def run(args):
             "positions": sum(1 for m in moments if m["best"]), "generated": payload["generated"],
             "elo": [(c, last_elo[c]) for c, _ in Counter(r["cadence"] for r in rows).most_common() if c in last_elo][:3]}
 
-def encrypt_page(page, password, name, lang="fr"):
+def encrypt_page(page, password, name, lang=None):
     """Compresse puis chiffre la page (AES-256-GCM, clé dérivée du mot de passe par PBKDF2) dans une page de déverrouillage."""
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM   # requis seulement pour --publier
     # sel fixe par joueur : la clé mémorisée sur un appareil reste valable après chaque régénération du rapport
@@ -975,12 +976,12 @@ def encrypt_page(page, password, name, lang="fr"):
     data = AESGCM(key).encrypt(iv, gzip.compress(page.encode("utf-8")), None)
     b64 = lambda b: base64.b64encode(b).decode()
     return (template("verrou.html").replace("__SALT__", b64(salt)).replace("__IV__", b64(iv))
-            .replace("__ITER__", str(PBKDF2_ITERATIONS)).replace("__BUILD__", BUILD).replace("__LANGUE__", lang)
+            .replace("__ITER__", str(PBKDF2_ITERATIONS)).replace("__BUILD__", BUILD).replace("__LANGUE__", lang or "")
             .replace("__CIPHER__", b64(data)))
 
-def write_manifest(out_dir, user, page, lang="fr"):
+def write_manifest(out_dir, user, page, lang=None):
     """Manifeste propre à chaque rapport : installé sur l'écran d'accueil, il ouvre directement ce rapport."""
-    manifest = {"name": f"Chess Analytics · {user}", "short_name": "Chess", "lang": lang,
+    manifest = {"name": f"Chess Analytics · {user}", "short_name": "Chess", "lang": lang or "fr",
                 "start_url": f"./{page}", "scope": "./", "display": "standalone",
                 "background_color": "#10151d", "theme_color": "#10151d",
                 "icons": [{"src": "../icon-192.png", "sizes": "192x192", "type": "image/png"},
@@ -1023,12 +1024,13 @@ def template(name):
 DASHBOARD_SCRIPTS = ["i18n.js", "base.js", "comportement.js", "entrainement.js", "etude.js", "moteur.js", "explication.js", "partie.js", "devine.js",
                      "finales.js", "serie.js", "aveugle.js", "cours.js", "repertoire.js", "objectif.js", "adversaire.js", "synchro.js", "demarrage.js"]
 
-def dashboard_page(lang="fr"):
-    """Page du tableau de bord, avec les traductions de toutes les langues : le visiteur peut changer de langue dans la page."""
+def dashboard_page(lang=None):
+    """Page du tableau de bord, avec les traductions de toutes les langues : le visiteur peut changer de langue dans la page.
+    lang = langue affichée à la première visite ; None : celle du navigateur du visiteur."""
     i18n = json.dumps({l: translations(l) for l in LANGUES if l != "fr"}, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     script = "\n".join(template(f"js/{name}") for name in DASHBOARD_SCRIPTS)
     return (template("dashboard.html").replace("__SCRIPT__", script.replace("__I18N__", i18n).replace("__LANGUE__", json.dumps(lang)))
-            .replace('<html lang="fr">', f'<html lang="{lang}">'))
+            .replace('<html lang="fr">', f'<html lang="{lang or "fr"}">'))
 
 # --- Langues. Le texte source est le français ; templates/i18n/<langue>/*.json traduit chaque phrase française,
 # avec les mêmes variables {nom}. Pour ajouter une langue : un dossier de traductions et son code dans LANGUES (et i18n.js).

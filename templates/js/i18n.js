@@ -1,12 +1,15 @@
 /* ---------- langue de l'interface ----------
    Le texte source est le français. templates/i18n/<langue>/*.json traduit chaque phrase française, réunis par le générateur
    dans I18N = {langue: {phrase française: traduction}}. Langue affichée : le choix du visiteur (localStorage), sinon celle
-   du rapport (--langue). Dans le code : tx('Phrase française') ou tx('{n} parties',{n}) — la clé est le littéral français,
+   imposée au rapport (--langue), sinon celle du navigateur (anglais si elle n'est pas disponible). Dans le code : tx('Phrase française') ou tx('{n} parties',{n}) — la clé est le littéral français,
    tests/test_i18n.py vérifie que chaque tx('…') littéral est traduit. Le texte fixe de dashboard.html est traduit ici au
    démarrage, nœud par nœud (texte, placeholder, title, aria-label). Changer de langue recharge la page. */
 const I18N=__I18N__;
 const LANGUES=['fr',...Object.keys(I18N)];
-const LANG=(()=>{let l=null;try{l=localStorage.getItem('chess-up:langue')}catch(e){}return LANGUES.includes(l)?l:__LANGUE__})();
+const LANG=(()=>{let l=null;try{l=localStorage.getItem('chess-up:langue')}catch(e){}if(LANGUES.includes(l))return l;
+ if(LANGUES.includes(__LANGUE__))return __LANGUE__;
+ for(const n of navigator.languages||[navigator.language]){const c=String(n||'').slice(0,2).toLowerCase();if(LANGUES.includes(c))return c}
+ return 'en'})();
 const LOCALE={fr:'fr-FR',en:'en-US'}[LANG]||LANG;
 const DICT=I18N[LANG]||{};
 function tx(s,v){const r=DICT[s]??s;return v?r.replace(/\{(\w+)\}/g,(m,k)=>k in v?v[k]:m):r}

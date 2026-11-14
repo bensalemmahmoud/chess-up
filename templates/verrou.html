@@ -14,12 +14,14 @@ button:disabled{opacity:.6}#msg{min-height:20px;margin-top:12px;font-size:14px;c
 <button id="go" data-t="ouvrir">Ouvrir</button><div id="msg"></div></form>
 <script>
 const SALT='__SALT__',IV='__IV__',ITER=__ITER__,BUILD='__BUILD__',CIPHER='__CIPHER__';
-// Langue : celle choisie dans un rapport (même clé que i18n.js du tableau de bord), sinon celle du rapport (--langue)
+// Langue : celle choisie dans un rapport (même clé que i18n.js du tableau de bord), sinon celle imposée (--langue),
+// sinon celle du navigateur (anglais si elle n'est pas disponible)
 const TXT={fr:{titre:'Rapport privé',aide:'Entre le mot de passe de ce rapport.',garder:'Se souvenir sur cet appareil',ouvrir:'Ouvrir',
  ouverture:'Ouverture…',faux:'Mot de passe incorrect.',erreur:'Ouverture impossible : ',vieux:'Ce navigateur est trop ancien pour ouvrir ce rapport.'},
  en:{titre:'Private report',aide:'Enter the password for this report.',garder:'Remember on this device',ouvrir:'Open',
  ouverture:'Opening…',faux:'Wrong password.',erreur:'Cannot open the report: ',vieux:'This browser is too old to open this report.'}};
-const L=TXT[(()=>{try{return localStorage.getItem('chess-up:langue')}catch(e){return null}})()]||TXT['__LANGUE__']||TXT.fr;
+const L=TXT[(()=>{try{return localStorage.getItem('chess-up:langue')}catch(e){return null}})()]||TXT['__LANGUE__']
+ ||(navigator.languages||[navigator.language]).map(n=>TXT[String(n||'').slice(0,2).toLowerCase()]).find(Boolean)||TXT.en;
 document.documentElement.lang=L===TXT.en?'en':'fr';document.querySelectorAll('[data-t]').forEach(el=>el.textContent=L[el.dataset.t]);
 // Le navigateur (ou l'application installée) peut garder une ancienne copie de la page en cache :
 // si une version plus récente est publiée, on recharge une fois, à une adresse qui contourne le cache.
