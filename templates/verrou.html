@@ -8,12 +8,19 @@ input[type=password]{width:100%;background:#111a25;color:#edf3fb;border:1px soli
 label{display:flex;gap:8px;align-items:center;color:#a9b6c8;font-size:14px;margin:12px 0 16px}button{width:100%;background:#3987e5;color:#fff;border:0;border-radius:8px;padding:11px;font:inherit;font-weight:600;cursor:pointer}
 button:disabled{opacity:.6}#msg{min-height:20px;margin-top:12px;font-size:14px;color:#ff8b8b}
 </style></head><body>
-<form id="f" hidden><h1>Rapport privé</h1><p>Entre le mot de passe de ce rapport.</p>
+<form id="f" hidden><h1 data-t="titre">Rapport privé</h1><p data-t="aide">Entre le mot de passe de ce rapport.</p>
 <input type="password" id="pw" autocomplete="current-password" required autofocus>
-<label><input type="checkbox" id="keep" checked> Se souvenir sur cet appareil</label>
-<button id="go">Ouvrir</button><div id="msg"></div></form>
+<label><input type="checkbox" id="keep" checked> <span data-t="garder">Se souvenir sur cet appareil</span></label>
+<button id="go" data-t="ouvrir">Ouvrir</button><div id="msg"></div></form>
 <script>
 const SALT='__SALT__',IV='__IV__',ITER=__ITER__,BUILD='__BUILD__',CIPHER='__CIPHER__';
+// Langue : celle choisie dans un rapport (même clé que i18n.js du tableau de bord), sinon celle du rapport (--langue)
+const TXT={fr:{titre:'Rapport privé',aide:'Entre le mot de passe de ce rapport.',garder:'Se souvenir sur cet appareil',ouvrir:'Ouvrir',
+ ouverture:'Ouverture…',faux:'Mot de passe incorrect.',erreur:'Ouverture impossible : ',vieux:'Ce navigateur est trop ancien pour ouvrir ce rapport.'},
+ en:{titre:'Private report',aide:'Enter the password for this report.',garder:'Remember on this device',ouvrir:'Open',
+ ouverture:'Opening…',faux:'Wrong password.',erreur:'Cannot open the report: ',vieux:'This browser is too old to open this report.'}};
+const L=TXT[(()=>{try{return localStorage.getItem('chess-up:langue')}catch(e){return null}})()]||TXT['__LANGUE__']||TXT.fr;
+document.documentElement.lang=L===TXT.en?'en':'fr';document.querySelectorAll('[data-t]').forEach(el=>el.textContent=L[el.dataset.t]);
 // Le navigateur (ou l'application installée) peut garder une ancienne copie de la page en cache :
 // si une version plus récente est publiée, on recharge une fois, à une adresse qui contourne le cache.
 // À vérifier AVANT d'afficher le rapport : document.open() interromprait la requête. Sans réponse en 2,5 s (hors ligne), on continue.
@@ -33,9 +40,9 @@ function show(html){document.open();document.write(html);document.close()}
 async function auto(){if(await reloading)return;const saved=store.get();if(saved){try{const key=await crypto.subtle.importKey('raw',bytes(saved),'AES-GCM',true,['decrypt']);return show(await decrypt(key))}catch(e){store.del()}}
  document.getElementById('f').hidden=false;document.getElementById('pw').focus()}
 document.getElementById('f').onsubmit=async e=>{e.preventDefault();const go=document.getElementById('go'),msg=document.getElementById('msg');
- go.disabled=true;go.textContent='Ouverture…';msg.textContent='';
+ go.disabled=true;go.textContent=L.ouverture;msg.textContent='';
  try{const key=await derive(document.getElementById('pw').value);const html=await decrypt(key);
   if(document.getElementById('keep').checked)store.set(b64(await crypto.subtle.exportKey('raw',key)));show(html)}
- catch(err){msg.textContent=err&&err.name==='OperationError'?'Mot de passe incorrect.':'Ouverture impossible : '+err;go.disabled=false;go.textContent='Ouvrir'}};
-if(!window.crypto||!crypto.subtle||!window.DecompressionStream){document.body.textContent='Ce navigateur est trop ancien pour ouvrir ce rapport.'}else auto();
+ catch(err){msg.textContent=err&&err.name==='OperationError'?L.faux:L.erreur+err;go.disabled=false;go.textContent=L.ouvrir}};
+if(!window.crypto||!crypto.subtle||!window.DecompressionStream){document.body.textContent=L.vieux}else auto();
 </script></body></html>

@@ -54,8 +54,6 @@ MASTER_MAX_AGE = 90       # jours avant de renouveler l'échantillon
 VIDEOS_FILE = BASE_DIR / "cours" / "videos.json"   # vidéos par structure (outil videos_cours.py), versionné
 OPENINGS_CACHE = CACHE_DIR / "ouvertures.json"   # noms d'ouvertures Lichess, pour les exports PGN qui n'en ont pas
 OPENINGS_URL = "https://raw.githubusercontent.com/lichess-org/chess-openings/master/{}.tsv"
-MONTHS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août",
-             "septembre", "octobre", "novembre", "décembre"]
 USERNAME = DEFAULT_USERNAME              # remplacé par --user dans main()
 SESSION = requests.Session()
 SESSION.headers.update({
@@ -439,6 +437,8 @@ def build_parser():
     parser.add_argument("--mot-de-passe", dest="password", help="mot de passe du rapport, utilisé avec --publier (à mettre dans amis.txt)")
     parser.add_argument("--publier", action="store_true",
                         help="avec --amis : écrit dans site/ les rapports chiffrés avec le mot de passe de chaque joueur, prêts à mettre en ligne")
+    parser.add_argument("--langue", choices=LANGUES, default=None,
+                        help="langue du rapport et des pages d'accueil : fr ou en (défaut : fr ; chaque visiteur peut aussi changer dans le rapport)")
     parser.add_argument("--nouveau-mot-de-passe", dest="new_password", action="store_true", help="affiche un mot de passe aléatoire solide et s'arrête")
     return parser
 
@@ -470,6 +470,7 @@ def main():
             sub.no_analysis |= args.no_analysis
             sub.refresh |= args.refresh
             sub.workers = sub.workers or args.workers
+            sub.langue = sub.langue or args.langue
             sub.publier = args.publier
             if sub.publier and not sub.password:
                 print("Pas de --mot-de-passe sur cette ligne : rapport non publié.")
@@ -478,9 +479,9 @@ def main():
         except (SystemExit, Exception) as exc:   # un joueur introuvable ne doit pas bloquer les autres
             print(f"Rapport impossible (ligne {n} de {args.amis}) : {exc}")
     if args.publier:
-        write_public_index()
+        write_public_index(args.langue or "fr")
     else:
-        write_index(summaries)
+        write_index(summaries, args.langue or "fr")
 
 def opening_repertoire(rows, pgns, cache):
     """Évaluation Stockfish des positions d'ouverture où le joueur a le trait, agrégée sur ses parties analysées :
@@ -852,6 +853,7 @@ def run(args):
     """Génère le rapport d'un joueur et renvoie son résumé pour la page d'accueil."""
     global USERNAME
     USERNAME = args.user.strip().lower()
+    lang = getattr(args, "langue", None) or "fr"
     lichess = args.site == "lichess"
     site_label = "Lichess" if lichess else "Chess.com"
     out_dir = (SITE_DIR if args.publier else REPORTS_DIR) / (f"lichess_{USERNAME}" if lichess else USERNAME)
@@ -926,7 +928,7 @@ def run(args):
     # --- Dashboard
     payload = {
         "username": USERNAME, "generated": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "period": f"Depuis {MONTHS_FR[args.since[1] - 1]} {args.since[0]}",
+        "since": f"{args.since[0]}-{args.since[1]:02d}", "langue": lang,
         "thresholds": {"imp": chess_analysis.INACCURACY, "err": chess_analysis.MISTAKE,
                        "gaf": chess_analysis.BLUNDER, "win": chess_analysis.WINNING,
                        "tps": chess_analysis.TIME_BUCKETS, "t15": chess_analysis.TIME_CHECK_MOVE},
@@ -936,15 +938,15 @@ def run(args):
         "parties": masters, "cours": course,
     }
     home = "" if args.publier else '<a href="../index.html" class="muted" style="font-size:13px">← Tous les joueurs</a>'
-    page = (dashboard_page().replace("__SITE__", site_label).replace("__HOME__", home)
+    page = (dashboard_page(lang).replace("__SITE__", site_label).replace("__HOME__", home)
             .replace("__DATA__", json.dumps(payload, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")))
     if args.publier:
         html_path = out_dir / "index.html"   # lien court : https://<compte>.github.io/<dépôt>/<joueur>/
-        page = encrypt_page(page, args.password, out_dir.name)
+        page = encrypt_page(page, args.password, out_dir.name, lang)
     else:
         html_path = out_dir / "chess_dashboard.html"
     html_path.write_text(page, encoding="utf-8")
-    write_manifest(out_dir, USERNAME, html_path.name)
+    write_manifest(out_dir, USERNAME, html_path.name, lang)
 
     total = len(rows)
     wins = sum(r["resultat"] == "Victoire" for r in rows)
@@ -963,7 +965,7 @@ def run(args):
             "positions": sum(1 for m in moments if m["best"]), "generated": payload["generated"],
             "elo": [(c, last_elo[c]) for c, _ in Counter(r["cadence"] for r in rows).most_common() if c in last_elo][:3]}
 
-def encrypt_page(page, password, name):
+def encrypt_page(page, password, name, lang="fr"):
     """Compresse puis chiffre la page (AES-256-GCM, clé dérivée du mot de passe par PBKDF2) dans une page de déverrouillage."""
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM   # requis seulement pour --publier
     # sel fixe par joueur : la clé mémorisée sur un appareil reste valable après chaque régénération du rapport
@@ -973,40 +975,43 @@ def encrypt_page(page, password, name):
     data = AESGCM(key).encrypt(iv, gzip.compress(page.encode("utf-8")), None)
     b64 = lambda b: base64.b64encode(b).decode()
     return (template("verrou.html").replace("__SALT__", b64(salt)).replace("__IV__", b64(iv))
-            .replace("__ITER__", str(PBKDF2_ITERATIONS)).replace("__BUILD__", BUILD).replace("__CIPHER__", b64(data)))
+            .replace("__ITER__", str(PBKDF2_ITERATIONS)).replace("__BUILD__", BUILD).replace("__LANGUE__", lang)
+            .replace("__CIPHER__", b64(data)))
 
-def write_manifest(out_dir, user, page):
+def write_manifest(out_dir, user, page, lang="fr"):
     """Manifeste propre à chaque rapport : installé sur l'écran d'accueil, il ouvre directement ce rapport."""
-    manifest = {"name": f"Chess Analytics · {user}", "short_name": "Chess", "lang": "fr",
+    manifest = {"name": f"Chess Analytics · {user}", "short_name": "Chess", "lang": lang,
                 "start_url": f"./{page}", "scope": "./", "display": "standalone",
                 "background_color": "#10151d", "theme_color": "#10151d",
                 "icons": [{"src": "../icon-192.png", "sizes": "192x192", "type": "image/png"},
                           {"src": "../icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}]}
     (out_dir / "manifest.webmanifest").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
 
-def write_public_index():
+def write_public_index(lang="fr"):
     """Page d'accueil du site publié : aucun nom ni lien, chacun reçoit le lien de son propre rapport."""
     for f in (BASE_DIR / "web").iterdir():
         shutil.copy(f, SITE_DIR / f.name)
     page = template("accueil.html").replace("__CARDS__", "").replace("Choisis un joueur pour voir son rapport et lancer une séance d'entraînement.",
                                                          "Les rapports sont privés : ouvre le lien personnel qu'on t'a envoyé.")
+    page = localize(page, lang)
     (SITE_DIR / "index.html").write_text(page.replace("__GENERATED__", datetime.now().strftime("%Y-%m-%d %H:%M")), encoding="utf-8")
     (SITE_DIR / "robots.txt").write_text("User-agent: *\nDisallow: /\n", encoding="utf-8")
     (SITE_DIR / "version.txt").write_text(BUILD, encoding="utf-8")
     print(f"\nSite prêt à publier : {SITE_DIR}")
 
 
-def write_index(summaries):
+def write_index(summaries, lang="fr"):
     """Page d'accueil listant les rapports, et fichiers qui rendent le site installable sur téléphone."""
     for f in (BASE_DIR / "web").iterdir():
         shutil.copy(f, REPORTS_DIR / f.name)
     cards = "".join(
         f'''<a class="card" href="{html.escape(s["dir"])}/chess_dashboard.html"><div class="site">{html.escape(s["site"])}</div>
 <h2>{html.escape(s["user"])}</h2><div class="elo">{" · ".join(f"{html.escape(c)} <b>{html.escape(str(e))}</b>" for c, e in s["elo"]) or "—"}</div>
-<div class="meta">{s["games"]} parties · {s["analysed"]} analysées · {s["positions"]} positions d'entraînement</div></a>'''
+<div class="meta">{tr("{n} parties · {a} analysées · {p} positions d'entraînement", lang, n=s["games"], a=s["analysed"], p=s["positions"])}</div></a>'''
         for s in sorted(summaries, key=lambda s: s["user"]))
     generated = datetime.now().strftime("%Y-%m-%d %H:%M")
-    (REPORTS_DIR / "index.html").write_text(template("accueil.html").replace("__CARDS__", cards).replace("__GENERATED__", generated), encoding="utf-8")
+    page = localize(template("accueil.html"), lang)
+    (REPORTS_DIR / "index.html").write_text(page.replace("__CARDS__", cards).replace("__GENERATED__", generated), encoding="utf-8")
     print(f"\nPage d'accueil : {REPORTS_DIR / 'index.html'} ({len(summaries)} joueurs)")
 
 
@@ -1015,11 +1020,42 @@ def template(name):
     return (TEMPLATES_DIR / name).read_text(encoding="utf-8")
 
 # Code du tableau de bord, un fichier par fonctionnalité, réunis dans un seul <script> (l'ordre compte : demarrage.js en dernier)
-DASHBOARD_SCRIPTS = ["base.js", "comportement.js", "entrainement.js", "etude.js", "moteur.js", "explication.js", "partie.js", "devine.js",
+DASHBOARD_SCRIPTS = ["i18n.js", "base.js", "comportement.js", "entrainement.js", "etude.js", "moteur.js", "explication.js", "partie.js", "devine.js",
                      "finales.js", "serie.js", "aveugle.js", "cours.js", "repertoire.js", "objectif.js", "adversaire.js", "synchro.js", "demarrage.js"]
 
-def dashboard_page():
-    return template("dashboard.html").replace("__SCRIPT__", "\n".join(template(f"js/{name}") for name in DASHBOARD_SCRIPTS))
+def dashboard_page(lang="fr"):
+    """Page du tableau de bord, avec les traductions de toutes les langues : le visiteur peut changer de langue dans la page."""
+    i18n = json.dumps({l: translations(l) for l in LANGUES if l != "fr"}, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+    script = "\n".join(template(f"js/{name}") for name in DASHBOARD_SCRIPTS)
+    return (template("dashboard.html").replace("__SCRIPT__", script.replace("__I18N__", i18n).replace("__LANGUE__", json.dumps(lang)))
+            .replace('<html lang="fr">', f'<html lang="{lang}">'))
+
+# --- Langues. Le texte source est le français ; templates/i18n/<langue>/*.json traduit chaque phrase française,
+# avec les mêmes variables {nom}. Pour ajouter une langue : un dossier de traductions et son code dans LANGUES (et i18n.js).
+LANGUES = ("fr", "en")
+I18N_DIR = TEMPLATES_DIR / "i18n"
+
+def translations(lang):
+    """Dictionnaire {phrase française: traduction} de la langue, réuni depuis tous ses fichiers."""
+    out = {}
+    for f in sorted((I18N_DIR / lang).glob("*.json")) if lang != "fr" else ():
+        out.update(json.loads(f.read_text(encoding="utf-8")))
+    return out
+
+def tr(text, lang, **values):
+    """Traduit une phrase française (côté Python : pages d'accueil) et remplace ses variables {nom}."""
+    text = translations(lang).get(text, text) if lang != "fr" else text
+    return re.sub(r"\{(\w+)\}", lambda m: str(values.get(m.group(1), m.group(0))), text) if values else text
+
+def localize(page, lang):
+    """Traduit le texte entre balises d'une page HTML statique (une phrase absente du dictionnaire reste en français)."""
+    if lang == "fr":
+        return page
+    words = translations(lang)
+    def one(m):
+        key = " ".join(m.group(2).split())
+        return m.group(1) + words[key] + m.group(3) if key in words else m.group(0)
+    return re.sub(r"(>\s*)([^<>]*?\S[^<>]*?)(\s*<)", one, page).replace('<html lang="fr">', f'<html lang="{lang}">')
 
 if __name__ == "__main__":
     main()

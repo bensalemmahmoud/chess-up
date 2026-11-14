@@ -70,25 +70,25 @@ def payload():
                 "elo": 2700, "eloa": 2650, "fam": "Ruy Lopez", "res": "Nulle"},
                {"id": "partie0002", "m": " ".join(ucis), "e": [20] * (len(ucis) + 1), "b": ucis + [""], "c": "b",   # partie d'un cours
                 "elo": 2600, "eloa": 2620, "fam": "Ruy Lopez", "res": "Victoire", "st": "pion_isole", "start": 21,
-                "nom": "Joueur A – Joueur B, Tournoi 2026"}]
+                "nom": "A – B, 2026"}]
     roles = {r: {"n": 40, "pions": [["a3", 45, False], ["d5", 30, True]], "cases": {"N": [["e5", 30]], "B": [["d3", 25]], "R": [["e1", 40]]}}
              for r in ("a", "c")}
     cours = {"stats": {"pion_isole": {"n": 40, "pos": 900, "score": 52, "roles": roles, "ex": IQP},
                        "carlsbad": {"n": 20, "pos": 400, "score": 55, "roles": roles, "ex": IQP}},
-             "videos": {"pion_isole": [{"id": "abcdefghijk", "titre": "Vidéo de test", "chaine": "Chaîne", "vues": 123456, "t": 95}]},
+             "videos": {"pion_isole": [{"id": "abcdefghijk", "titre": "Video", "chaine": "Channel", "vues": 123456, "t": 95}]},
              "n": 100, "date": "2026-11-01"}
     objectif = {"cadence": "rapid", "target": 1700, "elo": 1690, "players": 3, "date": "2026-11-01",
                 "games": [{"resultat": r, "fin": "resigned", "sf": SF} for r in ("Victoire", "Défaite", "Nulle", "Victoire")]}
-    return {"username": "testeur", "generated": "2026-11-13 12:00", "period": "Depuis juin 2026",
+    return {"username": "testeur", "generated": "2026-11-13 12:00", "since": "2026-06", "langue": "fr",
             "thresholds": {"imp": chess_analysis.INACCURACY, "err": chess_analysis.MISTAKE, "gaf": chess_analysis.BLUNDER,
                            "win": chess_analysis.WINNING, "tps": chess_analysis.TIME_BUCKETS, "t15": chess_analysis.TIME_CHECK_MOVE},
             "site": "chesscom", "games": games, "moments": moments, "repertoire": {"": {"b": "e4", "w": 52, "m": {"e4": 52}}},
             "objectif": objectif, "etudes": etudes, "parties": parties, "cours": cours}
 
 
-def page():
-    data = json.dumps(payload(), ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
-    return gen.dashboard_page().replace("__SITE__", "Chess.com").replace("__HOME__", "").replace("__DATA__", data)
+def page(lang="fr"):
+    data = json.dumps({**payload(), "langue": lang}, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+    return gen.dashboard_page(lang).replace("__SITE__", "Chess.com").replace("__HOME__", "").replace("__DATA__", data)
 
 
 def browser():
@@ -125,14 +125,21 @@ class FixturePayload(unittest.TestCase):
 
 @unittest.skipUnless(node() and browser(), "Node 22+ et Edge/Chrome nécessaires")
 class Dashboard(unittest.TestCase):
-    def test_scenarios(self):
+    def run_page(self, lang):
         with tempfile.TemporaryDirectory() as tmp:
             html = Path(tmp) / "chess_dashboard.html"
-            html.write_text(page(), encoding="utf-8")
-            run = subprocess.run([node(), str(ROOT / "navigateur.mjs"), str(html), browser()],
+            html.write_text(page(lang), encoding="utf-8")
+            run = subprocess.run([node(), str(ROOT / "navigateur.mjs"), str(html), browser()], env={**os.environ, "LANGUE": lang},
                                  capture_output=True, text=True, encoding="utf-8", timeout=420)
         print(run.stdout, run.stderr, sep="\n", file=sys.stderr)
-        self.assertEqual(run.returncode, 0, "scénarios du navigateur en échec (détail ci-dessus)")
+        self.assertEqual(run.returncode, 0, f"scénarios du navigateur en échec, page en {lang} (détail ci-dessus)")
+
+    def test_scenarios(self):
+        self.run_page("fr")
+
+    def test_english(self):
+        """Page en anglais : chaque onglet et chaque mode d'entraînement, sans texte resté en français."""
+        self.run_page("en")
 
 
 if __name__ == "__main__":

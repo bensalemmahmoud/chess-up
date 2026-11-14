@@ -12,21 +12,21 @@ function renderRepertoire(G){
  const sf=D.repertoire?.[key],mine=myTurn(ply,repColor);
  const board=new Chess();repPath.forEach(s=>board.move(s,{sloppy:true}));
  $('repBoard').innerHTML=boardHTML(board,repColor==='Noirs',{last:(()=>{const h=board.history({verbose:true}).pop();return h?[h.from,h.to]:[]})()});
- $('repPath').innerHTML=[`<a href="#" data-i="0">Début</a>`,...repPath.map((s,i)=>`<a href="#" data-i="${i+1}">${esc(moveLabel(i,s))}</a>`)].join(' › ');
+ $('repPath').innerHTML=[`<a href="#" data-i="0">${tx('Début')}</a>`,...repPath.map((s,i)=>`<a href="#" data-i="${i+1}">${esc(moveLabel(i,s))}</a>`)].join(' › ');
  $('repBack').disabled=$('repStart').disabled=!repPath.length;$('repFwd').disabled=!repRedo.length;
  const sc=score(here);
- $('repInfo').innerHTML=here.length?`${here.length} parties dans cette position · ton score : <b>${fmt(sc.s)} %</b> (${vnd(sc)})`
-  +(mine?(sf?` · Stockfish conseille <b>${esc(sf.b)}</b>`:''):' · c\'est à ton adversaire de jouer'):'Aucune partie dans cette position avec les filtres actuels.';
+ $('repInfo').innerHTML=here.length?tx('{n} parties dans cette position · ton score : <b>{s}</b> ({v})',{n:here.length,s:fmt(sc.s)+PC,v:vnd(sc)})
+  +(mine?(sf?tx(' · Stockfish conseille <b>{m}</b>',{m:esc(sf.b)}):''):tx(' · c\'est à ton adversaire de jouer')):tx('Aucune partie dans cette position avec les filtres actuels.');
  const rows=Object.entries(next).sort((a,b)=>b[1].length-a[1].length).map(([san,l])=>{const s=score(l);
   let note='';
   if(mine&&sf){const after=sf.m[san];
-   if(bare(san)===bare(sf.b))note='<span class="win">✓ meilleur coup</span>';
-   else if(after!=null&&sf.w-after>=T.imp)note=`<span class="loss">⚠ ${sf.w-after>=T.err?'erreur':'imprécision'}</span> · Stockfish préfère <b>${esc(sf.b)}</b>`;
-   else if(after!=null)note='<span class="muted">bon coup</span>';}
-  return `<tr data-san="${esc(san)}" class="clickable"><td><b>${esc(moveLabel(ply,san))}</b></td><td class="num">${l.length}</td><td class="num">${fmt(pct(l.length,here.length),0)} %</td>
-   <td class="num"><span class="bar" style="width:${Math.round(s.s*.5)}px"></span>${fmt(s.s)} %</td><td>${note}</td></tr>`}).join('');
- $('repMoves').innerHTML=rows||`<tr><td colspan="5" class="empty">${here.length?'Fin des coups enregistrés pour cette ligne.':'—'}</td></tr>`;
- $('repHead').innerHTML=`<th>${mine?'Ton coup':'Coup adverse'}</th><th class="num">Parties</th><th class="num">Fréquence</th><th class="num">Ton score</th><th>Stockfish</th>`}
+   if(bare(san)===bare(sf.b))note=`<span class="win">${tx('✓ meilleur coup')}</span>`;
+   else if(after!=null&&sf.w-after>=T.imp)note=sf.w-after>=T.err?tx('<span class="loss">⚠ erreur</span> · Stockfish préfère <b>{m}</b>',{m:esc(sf.b)}):tx('<span class="loss">⚠ imprécision</span> · Stockfish préfère <b>{m}</b>',{m:esc(sf.b)});
+   else if(after!=null)note=`<span class="muted">${tx('bon coup')}</span>`;}
+  return `<tr data-san="${esc(san)}" class="clickable"><td><b>${esc(moveLabel(ply,san))}</b></td><td class="num">${l.length}</td><td class="num">${fmt(pct(l.length,here.length),0)}${PC}</td>
+   <td class="num"><span class="bar" style="width:${Math.round(s.s*.5)}px"></span>${fmt(s.s)}${PC}</td><td>${note}</td></tr>`}).join('');
+ $('repMoves').innerHTML=rows||`<tr><td colspan="5" class="empty">${here.length?tx('Fin des coups enregistrés pour cette ligne.'):'—'}</td></tr>`;
+ $('repHead').innerHTML=`<th>${mine?tx('Ton coup'):tx('Coup adverse')}</th><th class="num">${tx('Parties')}</th><th class="num">${tx('Fréquence')}</th><th class="num">${tx('Ton score')}</th><th>Stockfish</th>`}
 
 const repGo=()=>renderRepertoire(baseFilter(false));
 const repCut=n=>{repRedo=[...repRedo,...repPath.slice(n).reverse()];repPath=repPath.slice(0,n);repGo()};   // revenir au coup n
@@ -36,6 +36,8 @@ $('repPath').addEventListener('click',e=>{const a=e.target.closest('a[data-i]');
 $('repBack').addEventListener('click',()=>repPath.length&&repCut(repPath.length-1));
 $('repStart').addEventListener('click',()=>repCut(0));
 $('repFwd').addEventListener('click',()=>{if(repRedo.length){repPath.push(repRedo.pop());repGo()}});
+// Les options de dashboard.html n'ont pas de value : leur texte (traduit au démarrage) ne doit pas devenir la couleur choisie
+
 $('repColor').addEventListener('change',e=>{repColor=e.target.value;repPath=[];repRedo=[];repGo()});
 
 // Positions de ton répertoire où ton coup habituel est imprécis : un thème d'entraînement à part

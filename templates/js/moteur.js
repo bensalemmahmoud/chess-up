@@ -8,11 +8,11 @@ const Engine=(()=>{
   SOURCES=[{v:17,js:SF17+'.js',wasm:SF17+'.wasm',wait:45000},{v:10,js:'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js',wait:20000}];
  let worker=null,ready=null,busy=Promise.resolve(),version=null,level=null;
  function launch(s){
-  if(s.wasm&&typeof WebAssembly!=='object')return Promise.reject(new Error('WebAssembly absent'));
+  if(s.wasm&&typeof WebAssembly!=='object')return Promise.reject(new Error(tx('WebAssembly absent')));
   return fetch(s.js).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.text()}).then(src=>new Promise((resolve,reject)=>{
    const w=new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'}))+(s.wasm?'#'+encodeURIComponent(s.wasm):''));
-   const fail=err=>{clearTimeout(timer);try{w.terminate()}catch(e){}reject(err)},timer=setTimeout(()=>fail(new Error('délai dépassé')),s.wait);
-   w.onerror=e=>{e.preventDefault?.();fail(new Error(e.message||'erreur du moteur'))};
+   const fail=err=>{clearTimeout(timer);try{w.terminate()}catch(e){}reject(err)},timer=setTimeout(()=>fail(new Error(tx('délai dépassé'))),s.wait);
+   w.onerror=e=>{e.preventDefault?.();fail(new Error(e.message||tx('erreur du moteur')))};
    w.onmessage=e=>{if(String(e.data).startsWith('uciok')){clearTimeout(timer);w.onerror=null;resolve(w)}};
    w.postMessage('uci')}));
  }
@@ -39,8 +39,10 @@ const Engine=(()=>{
 
 /* Indice : le meilleur coup de Stockfish sur une position, en clair. Promesse de {from, to, san, text} (null si aucun coup) */
 function engineHint(fen,ms=1500){
- return Engine.move(fen,ms).then(r=>{const G=new Chess(fen),side=G.turn()==='w'?'Blancs':'Noirs',mv=G.move({from:r.from,to:r.to,promotion:r.promotion||'q'});
+ return Engine.move(fen,ms).then(r=>{const G=new Chess(fen),white=G.turn()==='w',mv=G.move({from:r.from,to:r.to,promotion:r.promotion||'q'});
   if(!mv)return null;
-  const ev=r.mate!=null?(r.mate>0?`mat en ${r.mate} pour les ${side}`:`les ${side} se font mater en ${-r.mate}`)
-   :`${Math.round(winPct(r.score))} % de chances de gain pour les ${side}`;
-  return {from:mv.from,to:mv.to,san:mv.san,text:`Stockfish joue <b>${esc(mv.san)}</b> (flèche) · ${ev}.`}})}
+  const n=r.mate!=null&&Math.abs(r.mate),p=Math.round(winPct(r.score))+PC;
+  const ev=r.mate!=null?(r.mate>0?(white?tx('mat en {n} pour les Blancs',{n}):tx('mat en {n} pour les Noirs',{n}))
+    :(white?tx('les Blancs se font mater en {n}',{n}):tx('les Noirs se font mater en {n}',{n})))
+   :white?tx('{p} de chances de gain pour les Blancs',{p}):tx('{p} de chances de gain pour les Noirs',{p});
+  return {from:mv.from,to:mv.to,san:mv.san,text:tx('Stockfish joue {m} (flèche) · {ev}.',{m:`<b>${esc(mv.san)}</b>`,ev})}})}

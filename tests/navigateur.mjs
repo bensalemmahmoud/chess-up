@@ -106,6 +106,39 @@ const SCENARIOS = [
     __t.ok(fCur.help,'aide notée');return __t.text('fFeedback')`],
 ];
 
+// LANGUE=en : la page est en anglais ; on parcourt chaque onglet et chaque mode d'entraînement à la recherche de texte
+// resté en français (mots courants qui n'existent pas en anglais). Les données synthétiques n'ont aucun mot français.
+const SCENARIOS_EN = [
+  ['en anglais : aucun texte français visible', false, `
+    const FR=/(?<![\\p{L}\\p{N}])(parties?|coups?|victoires?|défaites?|nulles?|ouvertures?|milieu|finales?|gaffes?|erreurs?|imprécisions?|entraînement|échiquier|pièces?|pions?|tours?|dames?|fous?|cavaliers?|tu|ton|ta|tes|toi|les|des|du|une|avec|pour|dans|sur|est|sont|joueurs?|adversaires?|blancs|noirs|depuis|mois|semaines?|aucune?|trouver|jouer|meilleur|séries?|niveau)(?![\\p{L}\\p{N}])/iu;
+    const found=window.__fr=new Set();
+    const look=window.__look=where=>{for(const line of document.body.innerText.split('\\n')){const m=line.match(FR);if(m)found.add(where+' ['+m[1]+'] '+line.trim().slice(0,100))}};
+    __t.ok(document.documentElement.lang==='en'&&LANG==='en','page en anglais');
+    const tabs=[...document.querySelectorAll('.tab')].map(t=>t.dataset.tab);
+    for(const t of tabs){showTab(t);await new Promise(r=>setTimeout(r,80));look('onglet '+t)}
+    showTab('entrainement');
+    for(const m of MODES){setMode(m);await new Promise(r=>setTimeout(r,200));look('mode '+m)}
+    __t.ok(!found.size,found.size+' lignes restées en français : '+[...found].slice(0,60).join(' ¦ '));
+    return tabs.length+' onglets, '+MODES.length+' modes'`],
+  ['en anglais : messages des exercices', false, `
+    const found=__fr;found.clear();const look=__look,pause=()=>new Promise(r=>setTimeout(r,150));
+    showTab('entrainement');setMode('coup');await __t.wait(()=>cur,3000,'position');const c=cur,b=c.best;
+    $('tHint').click();look('indice 1');$('tHint').click();look('indice 2');__t.move('board',b.from,b.to);await pause();look('coup joué');
+    setMode('etude');await __t.wait(()=>eCur,3000,'étude');look('étude : évaluation');
+    document.querySelector('#eBody [data-ev]').click();await pause();look('étude : après évaluation');
+    if(eCur.step==='why'){document.querySelector('#eBody [data-why]').click();await pause();look('étude : origine')}
+    $('eValidate').click();await pause();look('étude : énoncés validés');startMove();await pause();look('étude : ton coup');
+    $('eHint').click();look('étude : indice');$('eHint').click();__t.move('eBoard',eCur.bestMv.from,eCur.bestMv.to);await pause();look('étude : coup joué');
+    setMode('devine');await __t.wait(()=>dCur,3000,'devine');$('dHint').click();look('devine : indice');
+    const u=dCur.moves[dCur.ply];__t.move('dBoard',u.slice(0,2),u.slice(2,4));await pause();look('devine : coup joué');
+    setMode('cours');await __t.wait(()=>coKey,3000,'cours');look('cours');document.querySelector('#coTable tr[data-k="carlsbad"]').click();await pause();look('cours carlsbad');
+    setMode('finales');await __t.wait(()=>fCur,3000,'finale');$('fHint').click();await pause();look('finales : conseil');
+    setMode('serie');await pause();look('série');setMode('aveugle');await pause();look('aveugle');
+    __t.ok(!found.size,found.size+' lignes restées en français : '+[...found].slice(0,60).join(' ¦ '));
+    return 'ok'`],
+];
+const RUN = process.env.LANGUE === 'en' ? SCENARIOS_EN : SCENARIOS;
+
 const profile = mkdtempSync(join(tmpdir(), 'chess-up-'));
 const proc = spawn(exe, ['--headless=new', '--remote-debugging-port=0', '--user-data-dir=' + profile, '--no-first-run',
   '--no-default-browser-check', '--disable-extensions', '--window-size=1280,1000',
@@ -137,7 +170,7 @@ try {
     return r.result.value;
   };
   await run(HELPERS + `await __t.wait(()=>typeof Chess!=='undefined',30000,'chess.js (CDN)')`);
-  for (const [name, engine, body] of SCENARIOS) {
+  for (const [name, engine, body] of RUN) {
     if (engine && !MOTEUR) { console.log(`- ${name} : sauté (SANS_MOTEUR)`); continue; }
     const t0 = Date.now();
     try { const v = await run(body); console.log(`✓ ${name} (${((Date.now() - t0) / 1000).toFixed(1)} s)${v != null ? ' · ' + v : ''}`); }
@@ -150,7 +183,7 @@ try {
       const shot = await Promise.race([page.send('Page.captureScreenshot', {format: 'png'}), sleep(10000).then(() => null)]);
       if (!shot) { console.log('  (capture d\'écran impossible)'); continue; }
       const {data} = shot;
-      writeFileSync(join(process.env.CAPTURES, `${SCENARIOS.findIndex(s => s[0] === name) + 1}.png`), Buffer.from(data, 'base64'));
+      writeFileSync(join(process.env.CAPTURES, `${process.env.LANGUE || 'fr'}-${RUN.findIndex(s => s[0] === name) + 1}.png`), Buffer.from(data, 'base64'));
     }
   }
   if (errors.length) { failed++; console.log('✗ exceptions dans la page :\n  ' + errors.join('\n  ')); }

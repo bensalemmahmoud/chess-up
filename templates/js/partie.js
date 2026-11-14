@@ -21,9 +21,9 @@ function parsePgn(text){const tags={};text.replace(/\[(\w+)\s+"([^"]*)"\]/g,(_,k
  for(const [i,raw] of toks.entries()){let t=raw.replace(/0-0-0/g,'O-O-O').replace(/0-0/g,'O-O');
   if(french)t=t.replace(/^[RDTFC]/,c=>FR[c]).replace(/=([RDTFC])/,(_,c)=>'='+FR[c]);
   const mv=G.move(t,{sloppy:true});
-  if(!mv)throw new Error(`coup ${Math.floor(i/2)+1}${i%2?' des Noirs':''} illisible : « ${raw} »`);
+  if(!mv){const n=Math.floor(i/2)+1;throw new Error(i%2?tx('coup {n} des Noirs illisible : « {raw} »',{n,raw}):tx('coup {n} illisible : « {raw} »',{n,raw}))}
   sans.push(mv.san)}
- if(sans.length<10)throw new Error('il faut au moins 5 coups');
+ if(sans.length<10)throw new Error(tx('il faut au moins 5 coups'));
  return {tags,sans}}
 
 // Analyse : évaluation et meilleur coup de chaque position (point de vue des Blancs), puis les erreurs du joueur
@@ -45,22 +45,22 @@ function analyseOtb(text,color,progress){const {tags,sans}=parsePgn(text),G=new 
   srs['otb:'+id]={t:Date.now(),n:1,date,adv:moments[0]?.adv??(opp&&opp!=='?'?opp:null),couleur:color,res,coups:Math.ceil(sans.length/2),moments};saveSrs();
   return srs['otb:'+id]})}
 
-function renderOtb(){const L=otbGames();
- $('otbList').innerHTML=L.length?'<thead><tr><th>Date</th><th>Couleur</th><th>Adversaire</th><th>Résultat</th><th class="num">Coups</th><th class="num">Erreurs</th><th></th></tr></thead><tbody>'
-  +L.map(g=>`<tr><td>${esc(g.date||'—')}</td><td>${g.couleur==='w'?'Blancs':'Noirs'}</td><td>${esc(g.adv||'—')}</td><td class="${g.res==='Victoire'?'win':g.res==='Défaite'?'loss':g.res?'draw':''}">${g.res||'—'}</td>
-  <td class="num">${g.coups}</td><td class="num">${g.moments.length}</td><td><button class="linkbtn" data-del="${esc(g.id)}">Supprimer</button></td></tr>`).join('')+'</tbody>'
-  :'<tbody><tr><td class="empty">Aucune partie ajoutée pour l\'instant.</td></tr></tbody>'}
+function renderOtb(){const L=otbGames(),RES={Victoire:tx('Victoire'),Défaite:tx('Défaite'),Nulle:tx('Nulle')};
+ $('otbList').innerHTML=L.length?`<thead><tr><th>${tx('Date')}</th><th>${tx('Couleur')}</th><th>${tx('Adversaire')}</th><th>${tx('Résultat')}</th><th class="num">${tx('Coups')}</th><th class="num">${tx('Erreurs')}</th><th></th></tr></thead><tbody>`
+  +L.map(g=>`<tr><td>${esc(g.date||'—')}</td><td>${g.couleur==='w'?tx('Blancs'):tx('Noirs')}</td><td>${esc(g.adv||'—')}</td><td class="${g.res==='Victoire'?'win':g.res==='Défaite'?'loss':g.res?'draw':''}">${RES[g.res]||g.res||'—'}</td>
+  <td class="num">${g.coups}</td><td class="num">${g.moments.length}</td><td><button class="linkbtn" data-del="${esc(g.id)}">${tx('Supprimer')}</button></td></tr>`).join('')+'</tbody>'
+  :`<tbody><tr><td class="empty">${tx('Aucune partie ajoutée pour l\'instant.')}</td></tr></tbody>`}
 
-$('otbGo').onclick=()=>{if(otbBusy)return;const text=$('otbPgn').value.trim();if(!text){$('otbMsg').textContent='Colle d\'abord ta partie.';return}
- try{parsePgn(text)}catch(e){$('otbMsg').innerHTML=`<span class="loss">Partie illisible : ${esc(e.message)}.</span>`;return}
+$('otbGo').onclick=()=>{if(otbBusy)return;const text=$('otbPgn').value.trim();if(!text){$('otbMsg').textContent=tx('Colle d\'abord ta partie.');return}
+ try{parsePgn(text)}catch(e){$('otbMsg').innerHTML=`<span class="loss">${tx('Partie illisible : {e}.',{e:esc(e.message)})}</span>`;return}
  otbBusy=true;$('otbGo').disabled=true;
- analyseOtb(text,$('otbColor').value,(i,n)=>$('otbMsg').textContent=`Analyse par Stockfish : position ${i+1} sur ${n}… (reste sur la page)`)
- .then(g=>{$('otbPgn').value='';$('otbMsg').innerHTML=`<span class="win">Partie analysée : ${g.moments.length} erreur${g.moments.length>1?'s':''} à retravailler</span> dans le thème « Mes parties sur l'échiquier ».`;
+ analyseOtb(text,$('otbColor').value,(i,n)=>$('otbMsg').textContent=tx('Analyse par Stockfish : position {i} sur {n}… (reste sur la page)',{i:i+1,n}))
+ .then(g=>{$('otbPgn').value='';$('otbMsg').innerHTML=txn(g.moments.length,'<span class="win">Partie analysée : {n} erreur à retravailler</span> dans le thème « Mes parties sur l\'échiquier ».','<span class="win">Partie analysée : {n} erreurs à retravailler</span> dans le thème « Mes parties sur l\'échiquier ».');
   renderOtb();deckChosen=true;renderTraining(baseFilter(false));if(g.moments.length){$('tDeck').value='otb';buildQueue(false)}})
- .catch(e=>{$('otbMsg').innerHTML=`<span class="loss">Analyse impossible : ${esc(e.message||'Stockfish n\'a pas pu démarrer (connexion internet nécessaire)')}.</span>`})
+ .catch(e=>{$('otbMsg').innerHTML=`<span class="loss">${tx('Analyse impossible : {e}.',{e:esc(e.message||tx('Stockfish n\'a pas pu démarrer (connexion internet nécessaire)'))})}</span>`})
  .finally(()=>{otbBusy=false;$('otbGo').disabled=false})};
 // Suppression : une marque datée plutôt qu'un effacement, pour que la synchronisation ne fasse pas revenir la partie
 $('otbList').addEventListener('click',e=>{const b=e.target.closest('[data-del]');if(!b)return;
- if(b.dataset.confirm!=='1'){b.dataset.confirm='1';b.textContent='Confirmer ?';return}
+ if(b.dataset.confirm!=='1'){b.dataset.confirm='1';b.textContent=tx('Confirmer ?');return}
  srs['otb:'+b.dataset.del]={t:Date.now(),del:1};saveSrs();renderOtb();renderTraining(baseFilter(false))});
 renderOtb();

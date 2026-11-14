@@ -85,24 +85,26 @@ function playLine(fen,ucis){const G=new Chess(fen),moves=[];
   if(moves.length>=8&&!G.moves({verbose:true}).some(m=>m.from===u.slice(0,2)&&m.to===u.slice(2,4)&&m.captured))break;
   const mv=G.move({from:u.slice(0,2),to:u.slice(2,4),promotion:u[4]||'q'});if(!mv)break;moves.push(mv)}
  return {G,moves}}
-const les=c=>c==='w'?'les Blancs':'les Noirs',GOOD=new Set(['passes','colonne','paire_fous','avant_poste','mobilite','roi_actif']);
+const les=c=>c==='w'?tx('les Blancs'):tx('les Noirs'),GOOD=new Set(['passes','colonne','paire_fous','avant_poste','mobilite','roi_actif']);
 const names=(f,c,ks)=>ks.map(k=>`${ELEMENTS[k][3]} (${f[c][k].slice(0,3).join(', ')})`).join(', ');
 // Ce que la variante change, du point de vue du camp me qui joue le premier coup
 function lineFacts(fen,moves,G,me){const op=OTHER[me],f0=features(new Chess(fen)),f1=features(G),out=[],i=me==='w'?0:1;
- if(G.in_checkmate())return [G.turn()===op?`La variante se termine par le mat : ${les(me)} gagnent.`:`La variante se termine par le mat ${DES[me]}.`];
+ if(G.in_checkmate())return [G.turn()===op?tx('La variante se termine par le mat : {camp} gagnent.',{camp:les(me)})
+  :me==='w'?tx('La variante se termine par le mat des Blancs.'):tx('La variante se termine par le mat des Noirs.')];
  const dm=(f1.mat[i]-f1.mat[1-i])-(f0.mat[i]-f0.mat[1-i]);
- if(moves.some(m=>m.promotion&&m.color===me))out.push(`Un pion ${DES[me]} va à dame.`);
- if(dm>0)out.push(`${CAMP[me]} gagnent ${dm} point${dm>1?'s':''} de matériel.`);
- else if(dm<0)out.push(`${CAMP[me]} perdent ${-dm} point${dm<-1?'s':''} de matériel.`);
+ if(moves.some(m=>m.promotion&&m.color===me))out.push(me==='w'?tx('Un pion des Blancs va à dame.'):tx('Un pion des Noirs va à dame.'));
+ if(dm>0)out.push(txn(dm,'{camp} gagnent {n} point de matériel.','{camp} gagnent {n} points de matériel.',{camp:CAMP[me]}));
+ else if(dm<0)out.push(txn(-dm,'{camp} perdent {n} point de matériel.','{camp} perdent {n} points de matériel.',{camp:CAMP[me]}));
  const diff=(c,good,gained)=>Object.keys(ELEMENTS).filter(k=>k!=='en_prise'&&GOOD.has(k)===good&&(gained?f1[c][k]&&!f0[c][k]:f0[c][k]&&!f1[c][k]));
- const say=(ks,txt,f,c)=>{if(ks.length)out.push(txt+names(f,c,ks)+'.')};
- say(diff(me,true,true),`${CAMP[me]} obtiennent : `,f1,me);
- say(diff(op,false,true),`${CAMP[op]} se retrouvent avec : `,f1,op);
- say(diff(me,false,false),`${CAMP[me]} se débarrassent de : `,f0,me);
- say(diff(op,true,false),`${CAMP[op]} perdent : `,f0,op);
+ // phrase(camp, liste) : gabarit complet, traduit d'un bloc
+ const say=(ks,phrase,f,c)=>{if(ks.length)out.push(phrase(c,names(f,c,ks)))};
+ say(diff(me,true,true),(c,l)=>tx('{camp} obtiennent : {liste}.',{camp:CAMP[c],liste:l}),f1,me);
+ say(diff(op,false,true),(c,l)=>tx('{camp} se retrouvent avec : {liste}.',{camp:CAMP[c],liste:l}),f1,op);
+ say(diff(me,false,false),(c,l)=>tx('{camp} se débarrassent de : {liste}.',{camp:CAMP[c],liste:l}),f0,me);
+ say(diff(op,true,false),(c,l)=>tx('{camp} perdent : {liste}.',{camp:CAMP[c],liste:l}),f0,op);
  const plus=out.length>0&&dm>=0;   // « en contrepartie » seulement après un gain
- say(diff(me,false,true),plus?`En contrepartie, ${les(me)} acceptent : `:`${CAMP[me]} acceptent : `,f1,me);
- say(diff(op,true,true),plus?`En contrepartie, ${les(op)} obtiennent : `:`${CAMP[op]} obtiennent : `,f1,op);
+ say(diff(me,false,true),plus?(c,l)=>tx('En contrepartie, {camp} acceptent : {liste}.',{camp:les(c),liste:l}):(c,l)=>tx('{camp} acceptent : {liste}.',{camp:CAMP[c],liste:l}),f1,me);
+ say(diff(op,true,true),plus?(c,l)=>tx('En contrepartie, {camp} obtiennent : {liste}.',{camp:les(c),liste:l}):(c,l)=>tx('{camp} obtiennent : {liste}.',{camp:CAMP[c],liste:l}),f1,op);
  return out}
 
 // Explication d'un coup joué depuis fen : la suite de Stockfish et ce qu'elle change. La variante principale du moteur
@@ -129,9 +131,10 @@ function explainAll(fen,best,other){const x={};
  return explainMove(fen,best).then(b=>{x.best=b;return other&&bare(other)!==bare(best)?explainMove(fen,other):null})
   .then(r=>{x.refut=r;return threatOf(fen,x.best.win)}).then(t=>{x.threat=t;return x})}
 function explainHTML(x,labels={}){const blk=(l,title,key)=>`<div class="why"><b>${title}</b><p class="muted">${esc(l.text)}</p>
- ${l.facts.length?'<ul>'+l.facts.map(f=>`<li>${esc(f)}</li>`).join('')+'</ul>':'<p>Rien de concret ne change dans ces coups : l\'avantage tient aux coups que l\'adversaire ne peut plus jouer. Rejoue la variante pas à pas pour le voir.</p>'}
- <p>Au bout : ${Math.round(l.win)} % de chances de gain pour ${les(l.me)}.</p><button data-line="${key}">▶ Rejouer cette variante</button></div>`;
- let h=blk(x.best,labels.best||`Pourquoi ${esc(x.best.san)} : la suite de Stockfish`,'best');
- if(x.threat)h+=`<div class="why"><b>La menace</b><p>Si c'était ${x.threat.mv.color==='w'?'aux Blancs':'aux Noirs'} de jouer : ${threatText(x.threat)}. Le coup doit en tenir compte.</p></div>`;
- if(x.refut)h+=blk(x.refut,labels.refut||`Et ${esc(x.refut.san)} ? La réponse de Stockfish`,'refut');
+ ${l.facts.length?'<ul>'+l.facts.map(f=>`<li>${esc(f)}</li>`).join('')+'</ul>':'<p>'+tx('Rien de concret ne change dans ces coups : l\'avantage tient aux coups que l\'adversaire ne peut plus jouer. Rejoue la variante pas à pas pour le voir.')+'</p>'}
+ <p>${tx('Au bout : {p} de chances de gain pour {camp}.',{p:Math.round(l.win)+PC,camp:les(l.me)})}</p><button data-line="${key}">${tx('▶ Rejouer cette variante')}</button></div>`;
+ let h=blk(x.best,labels.best||tx('Pourquoi {san} : la suite de Stockfish',{san:esc(x.best.san)}),'best');
+ if(x.threat)h+=`<div class="why"><b>${tx('La menace')}</b><p>${x.threat.mv.color==='w'?tx('Si c\'était aux Blancs de jouer : {menace}. Le coup doit en tenir compte.',{menace:threatText(x.threat)})
+  :tx('Si c\'était aux Noirs de jouer : {menace}. Le coup doit en tenir compte.',{menace:threatText(x.threat)})}</p></div>`;
+ if(x.refut)h+=blk(x.refut,labels.refut||tx('Et {san} ? La réponse de Stockfish',{san:esc(x.refut.san)}),'refut');
  return h}

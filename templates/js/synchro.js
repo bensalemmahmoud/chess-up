@@ -15,12 +15,12 @@ async function importSync(code){const other=JSON.parse(new TextDecoder().decode(
 
 $('syncBtn').addEventListener('click',async()=>{$('syncMsg').textContent='';
  try{const url=await syncLink();$('syncOut').value=url;$('syncOut').hidden=false;$('syncOut').select();
-  if(navigator.share){try{await navigator.share({title:'Chess Analytics : ma progression',url});return}catch(e){}}
-  try{await navigator.clipboard.writeText(url);$('syncMsg').textContent='Lien copié. Ouvre-le sur ton autre appareil.'}
-  catch(e){$('syncMsg').textContent='Copie ce lien et ouvre-le sur ton autre appareil.'}}
- catch(e){$('syncMsg').textContent='Ce navigateur ne permet pas la synchronisation.'}});
+  if(navigator.share){try{await navigator.share({title:tx('Chess Analytics : ma progression'),url});return}catch(e){}}
+  try{await navigator.clipboard.writeText(url);$('syncMsg').textContent=tx('Lien copié. Ouvre-le sur ton autre appareil.')}
+  catch(e){$('syncMsg').textContent=tx('Copie ce lien et ouvre-le sur ton autre appareil.')}}
+ catch(e){$('syncMsg').textContent=tx('Ce navigateur ne permet pas la synchronisation.')}});
 
 async function handleSyncHash(){const code=location.hash.slice(6);history.replaceState(null,'','#entrainement');
  try{const n=await importSync(code);renderTraining(baseFilter(false));renderStudy(baseFilter(false));setMode('coup');
-  setFeedback('ok',`<b>Progression synchronisée :</b> ${n} position${n>1?'s':''} mise${n>1?'s':''} à jour depuis ton autre appareil.`)}
- catch(e){setFeedback('ko','Lien de synchronisation illisible : recrée-le sur l\'autre appareil.')}}
+  setFeedback('ok',txn(n,'<b>Progression synchronisée :</b> {n} position mise à jour depuis ton autre appareil.','<b>Progression synchronisée :</b> {n} positions mises à jour depuis ton autre appareil.'))}
+ catch(e){setFeedback('ko',tx('Lien de synchronisation illisible : recrée-le sur l\'autre appareil.'))}}
