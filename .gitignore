@@ -3,6 +3,8 @@ stockfish/
 # envoyées pour que GitHub Actions ne les recalcule pas
 cache/*
 !cache/analyses.json
+# parties de maîtres des cours par structure : longues à télécharger, envoyées comme point de départ de la CI
+!cache/maitres.json
 rapports/
 site/
 ancienne_version/

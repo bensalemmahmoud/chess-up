@@ -85,6 +85,20 @@ const SCENARIOS = [
     __t.ok(document.querySelector('#dBoard .sq.hint')?.dataset.sq===from&&$('dHint').disabled,'pièce du joueur fort surlignée');
     const u=c.moves[c.ply];__t.move('dBoard',u.slice(0,2),u.slice(2,4));
     __t.ok(c.shown&&c.r.f===0&&c.r.n===1,'trouvé avec l\\'indice : pas compté comme trouvé');return u`],
+  ['cours : structure prioritaire, échiquier, vidéo, erreurs et partie de maître à rejouer', false, `
+    setMode('cours');await __t.wait(()=>coKey,3000,'cours');
+    __t.ok(coKey==='pion_isole'&&coRole==='a','cours ouvert sur la structure prioritaire : '+coKey+':'+coRole);
+    __t.ok(document.querySelector('#coTable tr[data-k="carlsbad"][data-r="c"]'),'deuxième structure dans le tableau');
+    __t.ok(/a3/.test(__t.text('coBody'))&&document.querySelectorAll('#coBoard .sq.hint').length===3,'poussée des maîtres et cases des pièces');
+    __t.ok(/youtube\\.com\\/watch\\?v=abcdefghijk&amp;t=95s/.test($('coVideos').innerHTML),'vidéo au bon moment : '+$('coVideos').innerHTML.slice(0,120));
+    document.querySelector('#coTable tr[data-k="carlsbad"]').click();
+    __t.ok(coKey==='carlsbad'&&document.querySelector('#coBoard .sq').dataset.sq==='h1','tu joues contre : échiquier retourné');
+    showCours('pion_isole:a');__t.ok(!$('coTrain').hidden,'erreurs à rejouer');$('coTrain').click();
+    __t.ok($('tDeck').value==='st_pion_isole'&&cur?.m.st==='pion_isole:a','thème « Structure » dans Trouver le coup');
+    setMode('cours');document.querySelector('#coGames [data-dv]').click();
+    await __t.wait(()=>dCur?.p.st==='pion_isole',3000,'partie de maître');
+    __t.ok(dCur.ply>=21&&dCur.G.turn()==='b','départ à l\\'entrée dans la structure, du côté du gagnant');
+    return COURS[coKey].nom`],
   ['finales : conseil, puis meilleur coup de Stockfish', true, `
     setMode('finales');await __t.wait(()=>fCur,3000,'finale');__t.ok($('fHint').textContent==='Conseil','bouton Conseil');
     $('fHint').click();__t.ok(!$('fConseil').hidden&&$('fHint').textContent==='Meilleur coup','conseil affiché');

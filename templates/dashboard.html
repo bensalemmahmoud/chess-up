@@ -143,7 +143,7 @@ main{padding:14px 16px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.char
 </div>
 
 <div class="tab" data-tab="entrainement" hidden>
-<div class="modes" id="modes"><button data-mode="coup" class="active">Trouver le coup</button><button data-mode="etude">Étudier la position</button><button data-mode="devine">Deviner le coup</button><button data-mode="finales">Finales de référence</button><button data-mode="serie">Série chronométrée</button><button data-mode="aveugle">Calcul à l'aveugle</button></div>
+<div class="modes" id="modes"><button data-mode="coup" class="active">Trouver le coup</button><button data-mode="cours">Cours</button><button data-mode="etude">Étudier la position</button><button data-mode="devine">Deviner le coup</button><button data-mode="finales">Finales de référence</button><button data-mode="serie">Série chronométrée</button><button data-mode="aveugle">Calcul à l'aveugle</button></div>
 <div id="modeCoup">
 <div id="trMissing" class="panel empty" hidden></div>
 <section class="panel" id="trBlock"><h2>Séance d'entraînement</h2><p class="sub">Tes propres positions critiques : trouve le coup de Stockfish. Une position ratée revient dans la séance ; une position réussie revient de plus en plus tard (1, 3, 7, 16 puis 35 jours). La progression est enregistrée dans ce navigateur.</p>
@@ -159,6 +159,19 @@ main{padding:14px 16px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.char
 <div class="filters"><label>Je jouais les <select id="otbColor"><option value="w">Blancs</option><option value="b">Noirs</option></select></label><button id="otbGo">Analyser</button><span class="muted" id="otbMsg"></span></div>
 <div class="tablewrap"><table id="otbList"></table></div>
 <div class="note">L'analyse du navigateur est moins profonde que celle des parties en ligne : elle repère bien les erreurs nettes, moins les imprécisions. Ces parties n'entrent pas dans les statistiques.</div></section>
+</div>
+<div id="modeCours" hidden>
+<div id="coMissing" class="panel empty" hidden></div>
+<div id="coBlock">
+<section class="panel"><h2>Tes structures de pions</h2><p class="sub" id="coSub"></p><div class="tablewrap"><table id="coTable"></table></div>
+<div class="note">Une structure de pions (pion isolé, chaîne, étau…) décide des plans de la partie : les grands maîtres ne calculent pas tout, ils savent quoi faire dans chaque structure. Clique sur une ligne pour ouvrir son cours. En rouge : nettement plus d'erreurs que ta moyenne, au-delà de la marge du hasard.</div></section>
+<section class="panel" style="margin-top:14px"><div class="filters"><label>Cours <select id="coSel" class="select"></select></label></div>
+<div class="trainer"><div><div class="board mini" id="coBoard"></div><div class="note" id="coBoardNote"></div></div>
+<div class="tpanel"><div class="rank" id="coRole"></div><h3 id="coTitle"></h3><div id="coBody"></div>
+<h3>S'exercer</h3><div class="filters"><button id="coTrain" hidden></button></div><p class="sub">Rejoue une partie de maître dans cette structure, coup par coup, à sa place (« Deviner le coup ») :</p><div id="coGames"></div>
+<h3 style="margin-top:14px">En vidéo</h3><div id="coVideos"></div></div></div>
+<div class="note">Plans rédigés pour chaque structure ; statistiques calculées sur les parties lentes des tournois retransmis sur Lichess, entre joueurs à 2400 Elo et plus. Les cases sont données avec le camp qui possède la structure en Blancs (structure symétrique : le camp au trait).</div></section>
+</div>
 </div>
 <div id="modeDevine" hidden>
 <div id="dMissing" class="panel empty" hidden></div>

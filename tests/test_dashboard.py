@@ -27,7 +27,10 @@ SF = {"coups": 40, "phases": {"ouverture": {"coups": 10, "imp": 1, "err": 0, "ga
                               "finale": {"coups": 10, "imp": 0, "err": 0, "gaf": 0, "acc": 950.0}},
       "acpl": 40.0, "prec": 88.0, "zt_err": 0, "occ": 1, "mm": 0, "max_win": 90, "min_win": 30,
       "tps": {"coups": [20, 10, 6, 4], "err": [1, 1, 0, 0]}, "t15": 20, "finale": {"type": "tours", "w": 60},
-      "ctx": {"coups": {"moi_mobilite": 10, "adv_isoles": 5}, "err": {"moi_mobilite": 1}}, "eval_ouv": 10, "decisive": None}
+      "ctx": {"coups": {"moi_mobilite": 10, "adv_isoles": 5}, "err": {"moi_mobilite": 1}}, "eval_ouv": 10, "decisive": None,
+      "st": {"pion_isole:a": [12, 2, 1000.0, ["a3"]], "carlsbad:c": [6, 0, 520.0, []]}}
+# Position d'exemple d'un cours : pion dame isolé des Blancs (repère normalisé)
+IQP = "r2q1rk1/pp2bppp/2n1bn2/8/3P4/2NB1N2/PP3PPP/R1BQ1RK1 w - - 0 11"
 
 # Partie entière pour « Deviner le coup » (une Espagnole fermée), le joueur fort a les Blancs
 MASTER = ("e4 e5 Nf3 Nc6 Bb5 a6 Ba4 Nf6 O-O Be7 Re1 b5 Bb3 d6 c3 O-O h3 Nb8 d4 Nbd7 "
@@ -53,7 +56,8 @@ def payload():
             "variante": "Italian Game", "ECO": "C50", "lien": f"https://exemple.invalid/partie/{i}", "time_control": "600",
             "rated": True, "fin": "resigned", "coups": "e4 e5 Nf3 Nc6 Bc4 Bc5", "ts": 1780000000 + 86400 * i, "sf": SF})
     moments = [   # pas de mat : la partie doit pouvoir continuer contre Stockfish
-        moment("r1bqkbnr/pppp1ppp/8/4p3/2BnP3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4", "Nxe5", "Nxd4", 0, 6),    # partie 0, Blancs
+        moment("r1bqkbnr/pppp1ppp/8/4p3/2BnP3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4", "Nxe5", "Nxd4", 0, 6,     # partie 0, Blancs
+               st="pion_isole:a"),
         moment("r1bqkb1r/pppp1ppp/2n2n2/4p1N1/2B1P3/8/PPPP1PPP/RNBQK2R b KQkq - 5 4", "d5", "Bc5", 1, 7),   # partie 1, Noirs
     ]
     sfen = "2r1kb1r/pp3p1p/4pp2/3p4/2nP4/1PP2N2/P4PPP/RN2K2R b KQk - 0 14"
@@ -63,14 +67,23 @@ def payload():
     for san in MASTER:
         ucis.append(board.push_san(san).uci())
     parties = [{"id": "partie0001", "m": " ".join(ucis), "e": [20] * (len(ucis) + 1), "b": ucis + [""], "c": "w",
-                "elo": 2700, "eloa": 2650, "fam": "Ruy Lopez", "res": "Nulle"}]
+                "elo": 2700, "eloa": 2650, "fam": "Ruy Lopez", "res": "Nulle"},
+               {"id": "partie0002", "m": " ".join(ucis), "e": [20] * (len(ucis) + 1), "b": ucis + [""], "c": "b",   # partie d'un cours
+                "elo": 2600, "eloa": 2620, "fam": "Ruy Lopez", "res": "Victoire", "st": "pion_isole", "start": 21,
+                "nom": "Joueur A – Joueur B, Tournoi 2026"}]
+    roles = {r: {"n": 40, "pions": [["a3", 45, False], ["d5", 30, True]], "cases": {"N": [["e5", 30]], "B": [["d3", 25]], "R": [["e1", 40]]}}
+             for r in ("a", "c")}
+    cours = {"stats": {"pion_isole": {"n": 40, "pos": 900, "score": 52, "roles": roles, "ex": IQP},
+                       "carlsbad": {"n": 20, "pos": 400, "score": 55, "roles": roles, "ex": IQP}},
+             "videos": {"pion_isole": [{"id": "abcdefghijk", "titre": "Vidéo de test", "chaine": "Chaîne", "vues": 123456, "t": 95}]},
+             "n": 100, "date": "2026-11-01"}
     objectif = {"cadence": "rapid", "target": 1700, "elo": 1690, "players": 3, "date": "2026-11-01",
                 "games": [{"resultat": r, "fin": "resigned", "sf": SF} for r in ("Victoire", "Défaite", "Nulle", "Victoire")]}
     return {"username": "testeur", "generated": "2026-11-13 12:00", "period": "Depuis juin 2026",
             "thresholds": {"imp": chess_analysis.INACCURACY, "err": chess_analysis.MISTAKE, "gaf": chess_analysis.BLUNDER,
                            "win": chess_analysis.WINNING, "tps": chess_analysis.TIME_BUCKETS, "t15": chess_analysis.TIME_CHECK_MOVE},
             "site": "chesscom", "games": games, "moments": moments, "repertoire": {"": {"b": "e4", "w": 52, "m": {"e4": 52}}},
-            "objectif": objectif, "etudes": etudes, "parties": parties}
+            "objectif": objectif, "etudes": etudes, "parties": parties, "cours": cours}
 
 
 def page():

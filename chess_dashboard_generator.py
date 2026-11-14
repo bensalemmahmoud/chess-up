@@ -11,7 +11,7 @@
 #   python chess_dashboard_generator.py --since 2026-01         # période analysée (défaut : les 6 derniers mois)
 #   python chess_dashboard_generator.py --no-analysis           # statistiques seules, sans moteur
 
-import argparse, base64, csv, gzip, hashlib, html, io, json, os, re, secrets, shlex, shutil, sys, time
+import argparse, base64, csv, gzip, hashlib, html, io, json, logging, os, re, secrets, shlex, shutil, sys, time
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
@@ -19,6 +19,7 @@ import chess, chess.pgn
 import requests
 
 import chess_analysis
+import chess_structures
 
 DEFAULT_USERNAME = "mahmoud_ben_salem"   # joueur analysé quand --user n'est pas précisé
 DEFAULT_MONTHS = 6                       # période par défaut : le mois en cours et les 5 précédents
@@ -40,6 +41,17 @@ STUDY_OTHERS_MAX = 300     # positions d'étude tirées des parties de joueurs p
 CLASSICAL_CACHE = CACHE_DIR / "classiques.json"   # parties longues de joueurs forts, partagées par tous les rapports
 CLASSICAL_PLAYERS = 12     # joueurs du haut du classement Lichess en cadence classique...
 CLASSICAL_GAMES = 6        # ... et parties récentes de chacun
+MASTERS_CACHE = CACHE_DIR / "maitres.json"         # parties de grands maîtres (retransmissions Lichess), pour les cours par structure
+STRUCTURES_CACHE = CACHE_DIR / "structures.json"   # ce qu'ils font dans chaque structure, calculé une fois par échantillon
+STRUCTURES_VERSION = 3     # à incrémenter si les règles de chess_structures changent (recalcule structures.json)
+MASTER_GAMES = 3000        # parties de maîtres retenues...
+MASTER_MIN_ELO = 2400      # ... entre joueurs de ce niveau au moins (Elo FIDE), en cadence lente
+MASTER_TOUR_MAX = 250      # au plus ce nombre de parties par tournoi, pour varier les joueurs
+MASTER_PAGES = 10          # pages de la liste des tournois récents parcourues au plus (Lichess en donne 5)
+MASTER_TOUR_BYTES = 2_000_000   # export PGN d'un tournoi lu au plus jusqu'à cette taille...
+MASTER_TOUR_SECONDS = 45   # ... ou pendant ce temps (Lichess envoie lentement ceux des gros tournois)
+MASTER_MAX_AGE = 90       # jours avant de renouveler l'échantillon
+VIDEOS_FILE = BASE_DIR / "cours" / "videos.json"   # vidéos par structure (outil videos_cours.py), versionné
 OPENINGS_CACHE = CACHE_DIR / "ouvertures.json"   # noms d'ouvertures Lichess, pour les exports PGN qui n'en ont pas
 OPENINGS_URL = "https://raw.githubusercontent.com/lichess-org/chess-openings/master/{}.tsv"
 MONTHS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août",
@@ -622,6 +634,160 @@ def sample_classical():
         USERNAME = me
     return {"date": datetime.now().isoformat(timespec="seconds"), "players": players, "games": games} if games else None
 
+ENGINE_EVENTS = re.compile(r"\b(TCEC|CCC|computer|engines?|bots?)\b", re.I)   # retransmissions de parties entre moteurs
+
+def master_games_from_pgn(text, limit=MASTER_TOUR_MAX):
+    """Parties d'un export PGN de retransmission entre joueurs d'au moins MASTER_MIN_ELO, sous forme compacte
+    (noms, Elo, résultat, tournoi, année, ouverture, lien, coups UCI)."""
+    out, stream = [], io.StringIO(text)
+    logging.getLogger("chess.pgn").setLevel(logging.CRITICAL)   # ses avertissements citent les joueurs : journaux de la CI publics
+    while len(out) < limit:
+        game = chess.pgn.read_game(stream)
+        if game is None:
+            break
+        h = game.headers
+        if game.errors:
+            continue
+        try:
+            elos = int(h.get("WhiteElo", 0)), int(h.get("BlackElo", 0))
+        except ValueError:
+            continue
+        if (h.get("Variant", "Standard") != "Standard" or h.get("Result") not in ("1-0", "0-1", "1/2-1/2")
+                or min(elos) < MASTER_MIN_ELO or "FEN" in h or "BOT" in (h.get("WhiteTitle"), h.get("BlackTitle"))
+                or ENGINE_EVENTS.search(" ".join((h.get("BroadcastName", ""), h.get("Event", ""))))):
+            continue
+        moves = [m.uci() for m in game.mainline_moves()]
+        if len(moves) < 40:
+            continue
+        out.append({"w": h.get("White", "?"), "b": h.get("Black", "?"), "we": elos[0], "be": elos[1], "r": h["Result"],
+                    "ev": h.get("BroadcastName") or h.get("Event", ""), "y": h.get("Date", "")[:4], "o": h.get("Opening", ""),
+                    "u": h.get("GameURL") or h.get("Site", ""), "m": " ".join(moves)})
+    return out
+
+def bounded_download(url, max_bytes=MASTER_TOUR_BYTES, max_seconds=MASTER_TOUR_SECONDS):
+    """Début d'un export PGN : Lichess envoie lentement ceux des gros tournois, on s'arrête à max_bytes ou après
+    max_seconds, en coupant la dernière partie incomplète. Chaîne vide si le téléchargement échoue."""
+    chunks, size, start = [], 0, time.monotonic()
+    try:
+        with SESSION.get(url, timeout=30, stream=True) as response:
+            response.raise_for_status()
+            for chunk in response.iter_content(65536):
+                chunks.append(chunk)
+                size += len(chunk)
+                if size >= max_bytes or time.monotonic() - start > max_seconds:
+                    text = b"".join(chunks).decode("utf-8", errors="replace")
+                    cut = text.rfind("\n\n[Event ")
+                    return text[:cut] if cut > 0 else ""
+    except Exception:
+        return ""
+    return b"".join(chunks).decode("utf-8", errors="replace")
+
+def sample_masters():
+    """Parties lentes (cadence FIDE « standard ») des tournois retransmis sur Lichess : retransmissions officielles et
+    tournois récents (la liste publique s'arrête après quelques pages), les plus prestigieux (tier) d'abord."""
+    tours = {}
+    try:   # retransmissions officielles (ndjson, 100 au plus)
+        response = SESSION.get("https://lichess.org/api/broadcast", params={"nb": 100}, timeout=60)
+        response.raise_for_status()
+        for line in response.text.splitlines():
+            if line.strip():
+                tour = json.loads(line).get("tour", {})
+                tours.setdefault(tour.get("id"), tour)
+    except Exception as exc:
+        print(f"Retransmissions officielles indisponibles : {exc}")
+    for page in range(1, MASTER_PAGES + 1):
+        try:
+            past = get_json(f"https://lichess.org/api/broadcast/top?page={page}").get("past", {})
+        except Exception:
+            break
+        for t in past.get("currentPageResults", []):
+            tours.setdefault(t.get("tour", {}).get("id"), t.get("tour", {}))
+        if not past.get("nextPage"):
+            break
+    slow = sorted((t for k, t in tours.items() if k and t.get("info", {}).get("fideTC") == "standard"), key=lambda t: -(t.get("tier") or 0))
+    games, used = [], 0
+    for n, tour in enumerate(slow, 1):
+        text = bounded_download(f"https://lichess.org/api/broadcast/{tour['id']}.pgn")
+        if text:
+            used += 1
+            games += [g for g in master_games_from_pgn(text) if g["u"]]
+        if n % 10 == 0:
+            print(f"Parties de maîtres : {len(games)} après {n} tournois")
+        time.sleep(1)
+        if len(games) >= MASTER_GAMES:
+            break
+    print(f"Parties de maîtres : {len(games)} de {used} tournois")
+    return {"date": datetime.now().isoformat(timespec="seconds"), "games": games[:MASTER_GAMES]} if games else None
+
+def master_pgn(g):
+    board = chess.Board()
+    for u in g["m"].split():
+        board.push_uci(u)
+    return str(chess.pgn.Game.from_board(board))
+
+def master_game(key, pick, g, analysis):
+    """Partie de maître à rejouer dans « Deviner le coup », depuis l'entrée dans la structure, du côté du gagnant
+    (du propriétaire de la structure en cas de nulle)."""
+    moves = g["m"].split()
+    if len(analysis["e"]) != len(moves) + 1:
+        return None
+    owner = pick["owner"]
+    c = "w" if g["r"] == "1-0" else "b" if g["r"] == "0-1" else "b" if owner == chess.BLACK else "w"
+    score = 0.5 if g["r"] == "1/2-1/2" else 1 if (g["r"] == "1-0") == (c == "w") else 0
+    me, opp = (g["we"], g["be"]) if c == "w" else (g["be"], g["we"])
+    return {"id": hashlib.sha1(g["u"].encode()).hexdigest()[:10], "m": g["m"], "e": analysis["e"], "b": analysis["b"], "c": c,
+            "elo": me, "eloa": opp, "fam": opening_family(g["o"]) if g["o"] else None,
+            "res": "Victoire" if score == 1 else "Défaite" if score == 0 else "Nulle",
+            "st": key, "start": pick["first"], "nom": master_title(g)}
+
+def master_title(g):
+    """« Blancs – Noirs, tournoi année » (sans le nom de ronde que certaines retransmissions mettent dans Event)."""
+    event = "" if re.match(r"(Round|Ronde|Rd)\b", g["ev"]) else g["ev"]
+    year = "" if g["y"] and g["y"] in event else g["y"]
+    return ", ".join(x for x in (f"{g['w']} – {g['b']}", " ".join(x for x in (event, year) if x)) if x)
+
+def structure_course(args):
+    """Cours par structure de pions : ce que font les grands maîtres dans chaque structure (parties lentes des tournois
+    retransmis sur Lichess, échantillon commun à tous les rapports, renouvelé tous les MASTER_MAX_AGE jours, jamais avec
+    --no-analysis), des parties à rejouer dans « Deviner le coup » (analysées par Stockfish ; avec --no-analysis,
+    seulement celles déjà en cache) et les vidéos de cours/videos.json. Renvoie (cours ou None, parties à rejouer)."""
+    videos = json.loads(VIDEOS_FILE.read_text(encoding="utf-8")) if VIDEOS_FILE.exists() else {}
+    entry = chess_analysis.load_cache(MASTERS_CACHE) or None
+    age = (datetime.now() - datetime.fromisoformat(entry["date"])).days if entry else None
+    if (entry is None or age > MASTER_MAX_AGE) and not args.no_analysis:
+        try:
+            entry = sample_masters() or entry
+        except Exception as exc:
+            print(f"Parties de maîtres indisponibles : {exc}")
+        if entry:
+            chess_analysis.save_cache(MASTERS_CACHE, entry)
+    if not entry:
+        return ({"stats": {}, "videos": videos} if videos else None), []
+    # parties entre moteurs d'un échantillon téléchargé avant leur exclusion
+    entry = {**entry, "games": [g for g in entry["games"] if not ENGINE_EVENTS.search(g["ev"])]}
+    stats = chess_analysis.load_cache(STRUCTURES_CACHE)
+    if stats.get("date") != entry["date"] or stats.get("v") != STRUCTURES_VERSION:
+        computed, picks = chess_structures.master_stats(entry["games"])
+        stats = {"date": entry["date"], "v": STRUCTURES_VERSION, "stats": computed,
+                 "picks": {k: v[:chess_structures.EXAMPLE_GAMES] for k, v in picks.items()}}
+        chess_analysis.save_cache(STRUCTURES_CACHE, stats)
+    chosen = [(key, p, entry["games"][p["i"]]) for key, picks in stats["picks"].items() for p in picks]
+    if args.no_analysis:
+        cache = chess_analysis.load_cache(ANALYSIS_CACHE)
+    else:
+        cache = chess_analysis.analyse_games([{"lien": g["u"], "pgn": master_pgn(g)} for _, _, g in chosen], ANALYSIS_CACHE,
+                                             depth=args.depth, workers=args.workers, alternatives=False)
+    games = []
+    for key, p, g in chosen:
+        if g["u"] in cache:
+            try:
+                whole = master_game(key, p, g, cache[g["u"]])
+            except Exception:
+                whole = None
+            if whole:
+                games.append(whole)
+    return {"stats": stats["stats"], "videos": videos, "n": len(entry["games"]), "date": entry["date"][:10]}, games
+
 def sample_objective(rows, lichess, cadence, target):
     """Joueurs autour de target : d'abord les adversaires du joueur à ce niveau, puis, s'il en manque,
     les adversaires de ces joueurs eux aussi à ce niveau (échantillon « boule de neige »)."""
@@ -707,7 +873,7 @@ def run(args):
         cache = chess_analysis.analyse_games(targets, ANALYSIS_CACHE, depth=args.depth, workers=args.workers)
 
     analysable_links = {r["lien"] for r in analysable}
-    moments, studies, masters = [], [], []
+    moments, studies, masters, course = [], [], [], None
     for idx, r in enumerate(rows):
         r["sf"] = None
         a = cache.get(r["lien"])
@@ -734,6 +900,10 @@ def run(args):
         print(f"Positions d'étude : {len(studies)} de tes parties, {len(others)} de joueurs plus forts, {len(classical)} de parties longues"
               f" ({len(masters)} parties entières pour « Deviner le coup »)")
         studies += others + classical
+        course, structure_games = structure_course(args)
+        masters += structure_games
+        if course:
+            print(f"Cours par structure : {len(course['stats'])} structures, {len(structure_games)} parties de maîtres à rejouer")
 
     # --- CSV
     csv_path = None if args.publier else out_dir / "chess_games.csv"   # rien en clair dans la version publiée
@@ -763,7 +933,7 @@ def run(args):
         "site": "lichess" if lichess else "chesscom",
         "games": [{k: v for k, v in r.items() if k != "rules"} for r in rows],
         "moments": moments, "repertoire": repertoire, "objectif": objective, "etudes": studies,
-        "parties": masters,
+        "parties": masters, "cours": course,
     }
     home = "" if args.publier else '<a href="../index.html" class="muted" style="font-size:13px">← Tous les joueurs</a>'
     page = (dashboard_page().replace("__SITE__", site_label).replace("__HOME__", home)
@@ -846,7 +1016,7 @@ def template(name):
 
 # Code du tableau de bord, un fichier par fonctionnalité, réunis dans un seul <script> (l'ordre compte : demarrage.js en dernier)
 DASHBOARD_SCRIPTS = ["base.js", "comportement.js", "entrainement.js", "etude.js", "moteur.js", "explication.js", "partie.js", "devine.js",
-                     "finales.js", "serie.js", "aveugle.js", "repertoire.js", "objectif.js", "adversaire.js", "synchro.js", "demarrage.js"]
+                     "finales.js", "serie.js", "aveugle.js", "cours.js", "repertoire.js", "objectif.js", "adversaire.js", "synchro.js", "demarrage.js"]
 
 def dashboard_page():
     return template("dashboard.html").replace("__SCRIPT__", "\n".join(template(f"js/{name}") for name in DASHBOARD_SCRIPTS))

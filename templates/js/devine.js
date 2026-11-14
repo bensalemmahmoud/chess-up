@@ -10,19 +10,21 @@ let dCur=null;
 const dvUci=(G,u)=>G.move({from:u.slice(0,2),to:u.slice(2,4),promotion:u[4]||'q'});
 const dvRec=p=>srs['dv:'+p.id]||{ply:0,n:0,f:0,a:0,am:0};
 function dvLabel(p,i){const r=dvRec(p),done=r.ply>=p.m.split(' ').length;
+ if(p.nom)return `${i+1}. ${p.nom} · ${typeof COURS!=='undefined'&&COURS[p.st]?COURS[p.st].nom:'structure'} · du côté ${p.c==='w'?'des Blancs':'des Noirs'}${done?' · ✓ terminée':r.n?` · en cours (${r.n} coups)`:''}`;
  return `${i+1}. ${p.elo||'?'} contre ${p.eloa||'?'} · ${p.fam||'ouverture ?'} · ${p.res==='Victoire'?'victoire':p.res==='Défaite'?'défaite':'nulle'} du joueur fort${done?' · ✓ terminée':r.n?` · en cours (${r.n} coups)`:''}`}
 function renderDevine(){const sel=$('dGame'),prev=sel.value;
  if(!PARTIES.length){$('dBlock').hidden=true;$('dMissing').hidden=false;
   $('dMissing').textContent='Aucune partie de joueur fort disponible : elles arrivent avec l\'analyse Stockfish (parties longues du haut du classement Lichess).';return}
  $('dBlock').hidden=false;$('dMissing').hidden=true;
  // d'abord les parties dans les familles d'ouvertures que tu joues
- const fams=new Set(D.games.map(g=>g.famille).filter(Boolean)),order=PARTIES.map((p,i)=>i).sort((a,b)=>fams.has(PARTIES[b].fam)-fams.has(PARTIES[a].fam));
+ // (les parties des cours par structure viennent après les parties longues du haut du classement)
+ const fams=new Set(D.games.map(g=>g.famille).filter(Boolean)),order=PARTIES.map((p,i)=>i).sort((a,b)=>!!PARTIES[a].st-!!PARTIES[b].st||fams.has(PARTIES[b].fam)-fams.has(PARTIES[a].fam));
  sel.innerHTML=order.map(i=>`<option value="${i}">${esc(dvLabel(PARTIES[i],i))}</option>`).join('');
  const firstOpen=order.find(i=>dvRec(PARTIES[i]).ply<PARTIES[i].m.split(' ').length);
  sel.value=prev&&PARTIES[+prev]?prev:String(firstOpen??order[0]);dvStart(+sel.value)}
 function dvStart(i,restart){const p=PARTIES[i],moves=p.m.split(' '),r=restart?{ply:0,n:0,f:0,a:0,am:0}:dvRec(p);
  const G=new Chess();let ply=0;
- const target=Math.max(DV_START,r.ply);
+ const target=Math.max(p.start||DV_START,r.ply);   // partie d'un cours : depuis l'entrée dans la structure
  while(ply<moves.length&&(ply<target||(ply%2===0?'w':'b')!==p.c)){dvUci(G,moves[ply]);ply++}
  dCur={p,i,moves,G,ply,r:{...r},sel:null,last:null,busy:false,expl:null,shown:false,hint:false};
  const h=G.history({verbose:true}).pop();if(h)dCur.last=[h.from,h.to];

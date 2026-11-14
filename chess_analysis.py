@@ -11,6 +11,8 @@ from pathlib import Path
 
 import chess, chess.engine, chess.pgn
 
+import chess_structures
+
 CACHE_VERSION = 1
 MATE = 10000            # un mat en n coups est encodé MATE - n (point de vue des Blancs)
 OPENING_END_PLY = 24    # position évaluée « en sortie d'ouverture » : après le 12e coup des Noirs
@@ -499,6 +501,8 @@ def game_metrics(row, pgn, analysis):
     cpl, accs, moments = [], [], []
     # contexte : éléments de la position (« moi_… » / « adv_… ») à chacun de tes coups hors ouverture, et à tes erreurs
     context = {"coups": {}, "err": {}}
+    # structures de pions (chess_structures) à tes coups : « structure:rôle » -> [coups, erreurs, somme des précisions, poussées de pions]
+    structures = {}
     zeit_err = missed_opp = missed_mate = own_moves = 0
     decisive = time_used = None
     prev_clock = base
@@ -544,6 +548,18 @@ def game_metrics(row, pgn, analysis):
                 context["coups"][k] = context["coups"].get(k, 0) + 1
                 if sev in ("err", "gaf"):
                     context["err"][k] = context["err"].get(k, 0) + 1
+            st = chess_structures.structure_at(board)
+            if st:
+                key, owner = st
+                st = f"{key}:{chess_structures.role_of(owner, me)}"
+                e = structures.setdefault(st, [0, 0, 0.0, []])
+                e[0] += 1
+                e[1] += sev in ("err", "gaf")
+                e[2] = round(e[2] + accs[-1], 1)
+                if board.piece_type_at(move.from_square) == chess.PAWN:
+                    name = chess_structures.pawn_move_name(board, move, chess_structures.flip_of(owner, me))
+                    if name not in e[3]:
+                        e[3].append(name)
             if sev in ("err", "gaf"):
                 zeit_err += zeit
                 missed_opp += opp_gift
@@ -567,6 +583,7 @@ def game_metrics(row, pgn, analysis):
                     "clk": round(clock) if clock is not None else None, "alts": alts,
                     "t": None if spent is None else round(spent), "tb": bucket, "ft": ft, "ctx": ctx,
                     "mot": motifs(board, move, best[ply], best[ply + 1] if ply + 1 < len(best) else "", before, after),
+                    "st": st,
                 })
             if loss >= MISTAKE and (decisive is None or loss > decisive["loss"]):
                 decisive = {"loss": round(loss), "ph": ph, "zt": zeit, "ply": ply}
@@ -583,7 +600,7 @@ def game_metrics(row, pgn, analysis):
         "max_win": round(max(my_wins)) if my_wins else None,
         "min_win": round(min(my_wins)) if my_wins else None,
         "tps": times if budget and sum(times["coups"]) else None,
-        "t15": time_used, "finale": endgame, "ctx": context,
+        "t15": time_used, "finale": endgame, "ctx": context, "st": structures,
         "eval_ouv": None if opening_eval is None else round(max(-1000, min(1000, opening_eval))),
         "decisive": decisive,
     }
