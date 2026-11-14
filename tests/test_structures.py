@@ -73,15 +73,21 @@ class MasterStats(unittest.TestCase):
         board, moves = chess.Board(), []
         for san in TARRASCH:
             moves.append(board.push_san(san).uci())
-        stats, picks = cs.master_stats([{"m": " ".join(moves), "r": "0-1"}])
+        stats, picks = cs.master_stats([{"m": " ".join(moves), "r": "1-0"}])
         iqp = stats["pion_isole"]
         self.assertEqual(iqp["n"], 1)
-        self.assertEqual(iqp["score"], 100)   # le propriétaire (les Noirs) a gagné
-        self.assertIn(["a3", 100, False], iqp["roles"]["a"]["pions"])   # 13...a6 des Noirs, vu dans le repère normalisé
-        self.assertIn(["a6", 100, False], iqp["roles"]["c"]["pions"])   # 13.a3 des Blancs, l'adversaire joue en haut
-        self.assertIn(["d5", 100], iqp["roles"]["c"]["cases"]["N"])     # 10.Nxd4 : le cavalier blanc vient bloquer (repère normalisé)
-        self.assertEqual(cs.classify(chess.Board(iqp["ex"])), ("pion_isole", chess.WHITE))   # exemple normalisé
+        self.assertEqual(iqp["score"], 0)   # le propriétaire (les Noirs) a perdu
+        # 10.Nxd4 : le cavalier blanc vient bloquer devant le pion isolé (« Nd5 » dans le repère normalisé), et les
+        # Blancs gagnent : c'est l'exemple du plan contre le pion isolé, montré dans la vraie position
+        ex = iqp["roles"]["c"]["ex"]
+        self.assertEqual([(x["san"], x["uci"], x["c"]) for x in ex], [("Nxd4", "f3d4", "w")])
+        self.assertEqual(chess.Board(ex[0]["fen"]).san(chess.Move.from_uci("f3d4")), "Nxd4")
+        self.assertEqual(iqp["roles"]["a"]["ex"], [])   # les Noirs ont perdu : pas d'exemple pour eux
+        self.assertEqual(cs.classify(chess.Board(iqp["ex"])), ("pion_isole", chess.WHITE))   # position d'exemple normalisée
         self.assertEqual(picks["pion_isole"][0]["first"], 18)
+
+    def test_plan_moves_cover_every_structure(self):
+        self.assertEqual(set(cs.PLAN_MOVES), set(cs.STRUCTURES))
 
 
 if __name__ == "__main__":

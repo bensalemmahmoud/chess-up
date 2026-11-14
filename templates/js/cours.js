@@ -1,7 +1,7 @@
 /* ---------- cours par structure de pions ---------- */
 // Une structure de pions décide des plans : on la reconnaît (chess_structures.py), on sait ce qu'il faut y faire.
-// Pour chaque structure : le plan (texte ci-dessous, par rôle), ce que font les grands maîtres (D.cours.stats : poussées
-// de pions et cases des pièces dans leurs parties lentes), tes chiffres dans cette structure (r.sf.st), tes erreurs à
+// Pour chaque structure : le plan (texte ci-dessous, par rôle), le plan en action chez les maîtres (D.cours.stats :
+// coups-clés de ce plan, chess_structures.PLAN_MOVES, dans leurs parties lentes gagnées), tes chiffres dans cette structure (r.sf.st), tes erreurs à
 // rejouer (thème « Structure : … » du mode « Trouver le coup »), des parties de maîtres à rejouer dans « Deviner le
 // coup » (D.parties avec st) et des vidéos (D.cours.videos). Repère normalisé : le camp qui possède la structure joue
 // les Blancs (structure symétrique : le camp au trait) ; l'échiquier est retourné quand tu joues contre.
@@ -63,18 +63,18 @@ const STRUCT_MIN_COUPS=4;   // une partie compte dans une structure si tu y as j
 let coKey=null,coRole=null;
 const coName=k=>COURS[k]?.nom||k;
 const coRoleName=(k,r)=>r==='s'?'':COURS[k]?.[r]||'';
-const PIECE_NAMES={N:tx('Cavaliers'),B:tx('Fous'),R:tx('Tours'),Q:tx('Dame')};
+let coEx=[],coExI=0;   // exemples du plan chez les maîtres pour le cours affiché, et celui montré sur l'échiquier
 const coRes=v=>({Victoire:tx('Victoire'),Défaite:tx('Défaite'),Nulle:tx('Nulle')})[v]||v;   // résultat affiché (la donnée reste en français)
 
 // Thèmes « Structure : … » du mode « Trouver le coup » : tes erreurs commises dans chaque structure
 Object.keys(COURS).forEach(k=>{DECKS['st_'+k]=[tx('· Structure : {nom}',{nom:COURS[k].nom}),m=>!!m.st&&m.st.split(':')[0]===k]});
 
-// Tes chiffres par structure et rôle, sur les parties filtrées : coups, erreurs, précision, parties, score, poussées de pions
+// Tes chiffres par structure et rôle, sur les parties filtrées : coups, erreurs, précision, parties, score
 function coursAgg(G){const out={};let N=0,NE=0;
  G.forEach(g=>{const sf=g.sf;if(!sf?.st)return;N+=sf.phases.milieu.coups;NE+=sf.phases.milieu.err+sf.phases.milieu.gaf;
-  Object.entries(sf.st).forEach(([kr,[n,err,acc,pions]])=>{const o=out[kr]||(out[kr]={k:kr.split(':')[0],r:kr.split(':')[1],coups:0,err:0,acc:0,games:[],pions:{}});
+  Object.entries(sf.st).forEach(([kr,[n,err,acc]])=>{const o=out[kr]||(out[kr]={k:kr.split(':')[0],r:kr.split(':')[1],coups:0,err:0,acc:0,games:[]});
    o.coups+=n;o.err+=err;o.acc+=acc;
-   if(n>=STRUCT_MIN_COUPS){o.games.push(g);pions.forEach(p=>o.pions[p]=(o.pions[p]||0)+1)}})});
+   if(n>=STRUCT_MIN_COUPS)o.games.push(g)})});
  const p0=N?NE/N:0;
  return {p0,rows:Object.values(out).filter(o=>COURS[o.k]&&o.games.length).map(o=>{const rate=o.coups?o.err/o.coups:0,se=Math.sqrt(Math.max(p0*(1-p0),1e-4)/Math.max(1,o.coups));
   return {...o,rate,sig:rate-p0>2*se?1:p0-rate>2*se?-1:0,sc:score(o.games),excess:(rate-p0)*o.coups}})}}
@@ -99,30 +99,17 @@ function renderCours(){const ok=typeof Chess!=='undefined'&&D.cours;
 function showCours(kr,rows){const [k,r]=kr.split(':');coKey=k;coRole=r;const c=COURS[k],st=(D.cours.stats||{})[k],role=st?.roles?.[r];
  rows=rows||coursAgg(baseFilter(false)).rows;const me=rows.find(x=>x.k===k&&x.r===r);
  $('coSel').value=kr;
- // échiquier : position d'exemple d'une partie de maître (repère normalisé), retourné si tu joues contre ;
- // en vert les cases préférées des pièces de ton camp, en orange les cases des poussées de pions typiques
- const G=new Chess();if(!(st?.ex&&G.load(st.ex)))G.clear();
- const pieceSq=role?Object.values(role.cases).map(l=>l[0]).filter(x=>x&&x[1]>=10).map(x=>x[0]):[];
- const levers=role?role.pions.filter(p=>p[2]):[],pawnSq=(levers.length?levers:role?.pions||[]).slice(0,3).map(p=>p[0].slice(-2));
- $('coBoard').innerHTML=boardHTML(G,r==='c',{hint:pieceSq,zone:pawnSq});
- $('coBoardNote').textContent=st?.ex?tx('Position d\'une partie de maître dans cette structure, {camp}. En vert : les cases où les maîtres amènent le plus souvent tes pièces ; en orange : les ruptures de pions typiques.',
-  {camp:r==='c'?tx('ton camp en bas (Noirs)'):r==='s'?tx('camp au trait en bas'):tx('ton camp en bas (Blancs)')}):'';
  $('coTitle').textContent=c.nom;$('coRole').textContent=coRoleName(k,r);
  const plan=c.plan[r]||[];
  let h=`<p>${esc(c.idee)}</p><h3>${tx('Le plan')}</h3><ul class="insights">${plan.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`;
- if(role){const nGames=st.n;
-  h+=`<h3>${tx('Ce que font les grands maîtres')}</h3><p class="muted">${r!=='s'?tx('{n} parties lentes de joueurs à 2400 Elo et plus passent par cette structure ; le camp qui la possède y marque {s}.',{n:nGames,s:st.score+PC})
-   :tx('{n} parties lentes de joueurs à 2400 Elo et plus passent par cette structure.',{n:nGames})}</p>`;
-  if(role.pions.length)h+=`<table><thead><tr><th>${tx('Poussée de pion')}</th><th class="num">${tx('Maîtres')}</th>`+(me?`<th class="num">${tx('Toi')}</th>`:'')+'</tr></thead><tbody>'
-   +role.pions.map(([mv,p,lever])=>`<tr><td>${esc(mv)}${lever?` <span class="pill">${tx('rupture')}</span>`:''}</td><td class="num">${p}${PC}</td>${me?`<td class="num ${(me.pions[mv]||0)/me.games.length*100<p/2?'loss':''}">${fmt(100*(me.pions[mv]||0)/me.games.length,0)}${PC}</td>`:''}</tr>`).join('')+'</tbody></table>'
-   +'<p class="note">'+(me?tx('Part des parties où ce coup de pion est joué pendant la structure. « Rupture » : le pion attaque ou prend un pion adverse, c\'est lui qui ouvre le jeu ; en rouge, quand tu le joues deux fois moins souvent que les maîtres.')
-    :tx('Part des parties où ce coup de pion est joué pendant la structure. « Rupture » : le pion attaque ou prend un pion adverse, c\'est lui qui ouvre le jeu.'))+'</p>';
-  const cases=Object.entries(PIECE_NAMES).filter(([p])=>role.cases[p]?.length).map(([p,l])=>`<li>${tx('{piece} : {cases}',{piece:`<b>${l}</b>`,cases:role.cases[p].map(([sq,v])=>`${sq} (${v}${PC})`).join(', ')})}</li>`);
-  if(cases.length)h+=`<p>${tx('Où ils amènent leurs pièces (part des parties où une pièce va sur cette case) :')}</p><ul class="insights">${cases.join('')}</ul>`}
+ // le plan en action : coups-clés de ce plan dans des parties de maîtres gagnées par le camp qui les joue
+ coEx=role?.ex||[];coExI=0;
+ if(coEx.length)h+=`<h3>${tx('Le plan en action chez les maîtres')}</h3><p class="muted">${tx('Des coups-clés de ce plan dans des parties lentes entre joueurs à 2400 Elo et plus, gagnées par le camp qui les joue. Clique pour voir la position, avec le coup en flèche.')}</p>`
+  +`<div class="stmts" id="coExList">${coEx.map((x,i)=>`<button class="linkbtn" data-ex="${i}">▶ ${esc(x.nom)} · ${x.c==='w'?tx('les Blancs jouent {coup}',{coup:esc(x.san)}):tx('les Noirs jouent {coup}',{coup:esc(x.san)})}</button>`).join('')}</div>`;
  if(me)h+=`<h3>${tx('Toi dans cette structure')}</h3><p>${txn(me.games.length,'{n} partie, score {s}, {e} d\'erreurs (ta moyenne en milieu de partie : {m}).','{n} parties, score {s}, {e} d\'erreurs (ta moyenne en milieu de partie : {m}).',
    {s:fmt(me.sc.s,0)+PC,e:fmt(100*me.rate)+PC,m:fmt(100*coursAgg(baseFilter(false)).p0)+PC})}</p>`
   +`<ul class="insights">${me.games.slice(-5).reverse().map(g=>`<li><a href="${esc(g.lien)}" target="_blank" rel="noopener">${esc(g.date)} · ${esc(g.adversaire)} · ${esc(coRes(g.resultat))}</a></li>`).join('')}</ul>`;
- $('coBody').innerHTML=h;
+ $('coBody').innerHTML=h;drawCoursBoard();
  // exercices : tes erreurs dans la structure, parties de maîtres à rejouer
  const nErr=deckCards('st_'+k).length,games=PARTIES.map((p,i)=>({p,i})).filter(x=>x.p.st===k);
  $('coTrain').hidden=!nErr;$('coTrain').textContent=tx('Rejouer mes erreurs dans cette structure ({n})',{n:nErr});
@@ -130,10 +117,24 @@ function showCours(kr,rows){const [k,r]=kr.split(':');coKey=k;coRole=r;const c=C
  const vids=(D.cours.videos||{})[k]||[];
  $('coVideos').innerHTML=vids.length?'<ul class="insights">'+vids.map(v=>`<li><a href="https://www.youtube.com/watch?v=${encodeURIComponent(v.id)}${v.t?'&t='+Math.floor(v.t)+'s':''}" target="_blank" rel="noopener">${esc(v.titre)}</a> <span class="muted">· ${esc(v.chaine)} · ${fmtVues(v.vues)}${v.t?' · '+tx('à partir de {t}',{t:fmtTemps(v.t)}):''}${v.langue?' · '+esc(v.langue):''}</span></li>`).join('')+'</ul>'
   :`<span class="muted">${tx('Pas encore de vidéo sélectionnée.')}</span> <a href="https://www.youtube.com/results?search_query=${encodeURIComponent(tx('{nom} échecs plan',{nom:c.nom}))}" target="_blank" rel="noopener">${tx('Chercher sur YouTube')}</a>`}
+// Échiquier du cours : l'exemple choisi (vraie partie, avant le coup-clé, le camp qui le joue en bas, coup en flèche),
+// sinon une position de la structure (repère normalisé, retourné si tu joues contre)
+function drawCoursBoard(){const x=coEx[coExI],G=new Chess();
+ document.querySelectorAll('#coExList [data-ex]').forEach(b=>b.classList.toggle('active',+b.dataset.ex===coExI));
+ if(x&&G.load(x.fen)){
+  $('coBoard').innerHTML=boardHTML(G,x.c==='b',{arrow:[x.uci.slice(0,2),x.uci.slice(2,4)]});
+  $('coBoardNote').innerHTML=tx('{nom} : position avant {coup}, joué par le camp en bas, qui a gagné la partie.',{nom:esc(x.nom),coup:`<b>${esc(x.san)}</b>`})
+   +(x.u?` <a href="${esc(x.u)}" target="_blank" rel="noopener">${tx('Voir la partie')}</a>`:'');return}
+ const st=(D.cours.stats||{})[coKey];if(!(st?.ex&&G.load(st.ex)))G.clear();
+ $('coBoard').innerHTML=boardHTML(G,coRole==='c');
+ $('coBoardNote').textContent=st?.ex?tx('Position d\'une partie de maître dans cette structure, {camp}.',
+  {camp:coRole==='c'?tx('ton camp en bas (Noirs)'):coRole==='s'?tx('camp au trait en bas'):tx('ton camp en bas (Blancs)')}):''}
 const fmtVues=n=>n>=1e6?tx('{n} M de vues',{n:fmt(n/1e6,1)}):n>=1e3?tx('{n} k vues',{n:fmt(n/1e3,0)}):tx('{n} vues',{n:n||0});
 const fmtTemps=t=>`${Math.floor(t/60)}:${String(Math.floor(t%60)).padStart(2,'0')}`;
 
 $('coSel').addEventListener('change',e=>showCours(e.target.value));
+$('coBody').addEventListener('click',e=>{const b=e.target.closest('[data-ex]');if(!b)return;coExI=+b.dataset.ex;drawCoursBoard();
+ if(innerWidth<900)$('coBoard').scrollIntoView({behavior:'smooth',block:'center'})});   // sur téléphone, l'échiquier est au-dessus
 $('coTable').addEventListener('click',e=>{const tr=e.target.closest('tr[data-k]');if(tr)showCours(tr.dataset.k+':'+tr.dataset.r)});
 $('coTrain').onclick=()=>{deckChosen=true;setMode('coup');renderTraining(baseFilter(false));$('tDeck').value='st_'+coKey;buildQueue(false)};
 $('coGames').addEventListener('click',e=>{const b=e.target.closest('[data-dv]');if(!b)return;const i=+b.dataset.dv;

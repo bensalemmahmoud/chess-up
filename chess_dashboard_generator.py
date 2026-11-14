@@ -43,7 +43,7 @@ CLASSICAL_PLAYERS = 12     # joueurs du haut du classement Lichess en cadence cl
 CLASSICAL_GAMES = 6        # ... et parties récentes de chacun
 MASTERS_CACHE = CACHE_DIR / "maitres.json"         # parties de grands maîtres (retransmissions Lichess), pour les cours par structure
 STRUCTURES_CACHE = CACHE_DIR / "structures.json"   # ce qu'ils font dans chaque structure, calculé une fois par échantillon
-STRUCTURES_VERSION = 3     # à incrémenter si les règles de chess_structures changent (recalcule structures.json)
+STRUCTURES_VERSION = 4     # à incrémenter si les règles de chess_structures changent (recalcule structures.json)
 MASTER_GAMES = 3000        # parties de maîtres retenues...
 MASTER_MIN_ELO = 2400      # ... entre joueurs de ce niveau au moins (Elo FIDE), en cadence lente
 MASTER_TOUR_MAX = 250      # au plus ce nombre de parties par tournoi, pour varier les joueurs
@@ -788,7 +788,12 @@ def structure_course(args):
                 whole = None
             if whole:
                 games.append(whole)
-    return {"stats": stats["stats"], "videos": videos, "n": len(entry["games"]), "date": entry["date"][:10]}, games
+    # exemples du plan : la partie (titre, lien de la retransmission) au lieu de son index dans l'échantillon
+    shown = {key: {**st, "roles": {role: {**r, "ex": [{**{k: v for k, v in ex.items() if k != "i"}, "nom": master_title(entry["games"][ex["i"]]),
+                                                       "u": entry["games"][ex["i"]]["u"]} for ex in r["ex"]]}
+                                   for role, r in st["roles"].items()}}
+             for key, st in stats["stats"].items()}
+    return {"stats": shown, "videos": videos, "n": len(entry["games"]), "date": entry["date"][:10]}, games
 
 def sample_objective(rows, lichess, cadence, target):
     """Joueurs autour de target : d'abord les adversaires du joueur à ce niveau, puis, s'il en manque,

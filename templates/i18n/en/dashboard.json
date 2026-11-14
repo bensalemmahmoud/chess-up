@@ -121,7 +121,7 @@
   "S'exercer": "Practise",
   "Rejoue une partie de maître dans cette structure, coup par coup, à sa place (« Deviner le coup ») :": "Replay a master game in this structure, move by move, in the master's shoes (“Guess the move”):",
   "En vidéo": "Videos",
-  "Plans rédigés pour chaque structure ; statistiques calculées sur les parties lentes des tournois retransmis sur Lichess, entre joueurs à 2400 Elo et plus. Les cases sont données avec le camp qui possède la structure en Blancs (structure symétrique : le camp au trait).": "Plans written for each structure; stats computed from slow games of tournaments broadcast on Lichess, between players rated 2400+. Squares are given with the side owning the structure as White (symmetric structure: the side to move).",
+  "Plans rédigés pour chaque structure ; exemples tirés des parties lentes des tournois retransmis sur Lichess, entre joueurs à 2400 Elo et plus.": "Plans written for each structure; examples taken from slow games of tournaments broadcast on Lichess, between players rated 2400+.",
 
   "Rejoue une partie longue d'un joueur du haut du classement Lichess, de son côté : à chaque coup, joue ce que tu jouerais à sa place. Ton coup est comparé au sien par Stockfish. C'est l'exercice qui apprend le mieux les plans : comment un joueur fort mène une position, coup après coup.": "Replay a long game by a top-rated Lichess player, from their side: at each move, play what you would play in their place. Stockfish compares your move with theirs. It's the best exercise for learning plans: how a strong player handles a position, move after move.",
   "Partie": "Game",

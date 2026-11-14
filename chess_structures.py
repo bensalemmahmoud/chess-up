@@ -2,8 +2,8 @@
 # Structures de pions : reconnaissance (règles sur les pions seuls) et ce qu'en font les grands maîtres.
 # - classify() donne la structure d'une position de milieu de partie, et le camp qui la « possède » (celui qui a le
 #   pion isolé, la chaîne avancée, l'attaque de minorité…) ; None pour une structure symétrique ;
-# - master_stats() parcourt des parties de maîtres : poussées de pions jouées par chaque camp, cases occupées par les
-#   pièces, score, et choisit des positions d'exemple et des parties à rejouer. Tout est ramené au même repère : le
+# - master_stats() parcourt des parties de maîtres : score, exemples des coups-clés du plan de chaque camp (PLAN_MOVES)
+#   dans des parties gagnées, position d'exemple et parties à rejouer. Les coups sont repérés dans un même repère : le
 #   camp propriétaire de la structure joue les Blancs (pour une structure symétrique, le camp qui a le trait).
 # Le texte des cours est dans templates/js/cours.js ; seules les clés (STRUCTURES) sont partagées.
 
@@ -14,11 +14,8 @@ import chess, chess.pgn
 STRUCT_START_PLY = 16   # structures reconnues à partir du 9e coup des Blancs (l'ouverture a posé les pions)
 STRUCT_MIN_NPM = 27     # et tant qu'il reste des pièces (au-delà, c'est une finale : d'autres plans)
 STRUCT_MIN_PLIES = 8    # une partie « passe par » une structure si elle y reste au moins ce nombre de demi-coups
-TOP_PAWN_MOVES = 6      # poussées de pions retenues par camp
-TOP_SQUARES = 3         # cases retenues par type de pièce
+EXAMPLES = 4            # coups-clés du plan montrés en exemple par camp (une partie de maître gagnée pour chacun)
 EXAMPLE_GAMES = 4       # parties de maîtres à rejouer par structure
-
-PIECE_LETTER = {chess.KNIGHT: "N", chess.BISHOP: "B", chess.ROOK: "R", chess.QUEEN: "Q"}
 
 
 def _pawns(board, color):
@@ -122,36 +119,46 @@ def _score(result, color):
     return 1.0 if (result == "1-0") == (color == chess.WHITE) else 0.0
 
 
-def is_lever(board, move):
-    """Rupture : le coup de pion prend un pion, ou attaque un pion adverse depuis sa case d'arrivée (reprendre une
-    pièce avec un pion n'en est pas une)."""
-    color = board.turn
-    if board.is_en_passant(move) or board.piece_type_at(move.to_square) == chess.PAWN:
-        return True
-    if board.is_capture(move):
-        return False
-    return bool(chess.BB_PAWN_ATTACKS[color][move.to_square] & board.pieces_mask(chess.PAWN, not color))
+# Coups-clés du plan de chaque camp (ceux du texte des cours, templates/js/cours.js), dans le repère normalisé : le
+# propriétaire joue les Blancs, l'adversaire les Noirs ; en symétrique, le camp au trait joue les Blancs.
+# « d5 » = un pion arrive en d5 (poussée ou prise) ; « Nd5 » = un cavalier arrive en d5 (N, B, R, Q).
+PLAN_MOVES = {
+    "pions_pendants": {"a": ("d5", "c5"), "c": ("b5", "e5")},
+    "pion_isole": {"a": ("d5", "Ne5"), "c": ("Nd5",)},
+    "carlsbad": {"a": ("b4", "b5", "e4"), "c": ("Ne4", "c5", "a5")},
+    "benoni": {"a": ("e5", "a4"), "c": ("b5", "c4")},
+    "chaine_francaise": {"a": ("f4", "f5"), "c": ("c5", "f6")},
+    "chaine_est_indienne": {"a": ("c5", "b4"), "c": ("f5", "f4", "g5")},
+    "maroczy": {"a": ("Nd5", "f3"), "c": ("b5", "d5")},
+    "sicilienne": {"a": ("Nd5", "f4", "f5", "g4", "g5"), "c": ("d5", "b5", "b4")},
+    "stonewall": {"a": ("Ne5",), "c": ("Ne4", "c5", "f6")},
+    "londres": {"a": ("Ne5", "e4", "f4"), "c": ("c5", "Qb6", "c4", "e5")},
+    "italienne": {"s": ("d4", "f4", "Ng3", "a4")},
+    "colonne_d": {"s": ("Rd1", "Nd5", "f4")},
+    "colonne_e": {"s": ("Re1", "Ne5", "c4")},
+    "centre_ouvert": {"s": ("Rd1", "Re1", "Nd5", "Ne5")},
+}
+LETTERS = {chess.KNIGHT: "N", chess.BISHOP: "B", chess.ROOK: "R", chess.QUEEN: "Q"}
 
 
-def _top_pawn_moves(counts, levers, n_games):
-    """Poussées retenues : d'abord les ruptures les plus fréquentes (au plus 4), complétées par les autres poussées,
-    affichées par fréquence : [[coup, % des parties, rupture ?]]."""
-    lever = {mv for mv, c in counts.items() if levers.get(mv, 0) * 2 >= c}
-    by_freq = sorted(counts.items(), key=lambda x: -x[1])
-    chosen = [mv for mv, _ in by_freq if mv in lever][:4]
-    chosen += [mv for mv, _ in by_freq if mv not in chosen][:TOP_PAWN_MOVES - len(chosen)]
-    return [[mv, round(100 * counts[mv] / n_games), mv in lever] for mv in sorted(chosen, key=lambda m: -counts[m])]
+def plan_move_name(board, move, flip):
+    """Nom d'un coup dans le repère normalisé, comme dans PLAN_MOVES : case d'arrivée (pion) ou lettre + case."""
+    to = chess.square_name(norm_square(move.to_square, flip))
+    return LETTERS.get(board.piece_type_at(move.from_square), "") + to if board.piece_type_at(move.from_square) != chess.KING else ""
+
 
 
 def master_stats(games):
     """Statistiques par structure sur des parties de maîtres [{m: coups UCI, r: résultat, …}] :
-    {structure: {n, pos, score (du propriétaire, %), roles: {a|c|s: {n, pions: [[coup, % parties, rupture ?]],
-    cases: {N|B|R|Q: [[case, % parties]]}}}, ex: FEN d'exemple normalisée}}, cases = où le camp amène ses pièces pendant
-    la structure ; et, par structure, les parties les plus longues dans la structure (index, 1er demi-coup, camp, longueur)."""
+    {structure: {n, pos, score (du propriétaire, %), roles: {a|c|s: {n, ex: [exemples]}}, ex: FEN d'exemple normalisée}}
+    et, par structure, les parties les plus longues dans la structure (index, 1er demi-coup, camp, longueur).
+    Exemples d'un rôle : les coups-clés du plan (PLAN_MOVES), les plus joués d'abord, chacun illustré par une partie que
+    ce camp a gagnée — {i: index de la partie, fen: position avant le coup (vraie partie, non normalisée), uci, san,
+    c: camp qui joue} ; au plus EXAMPLES par rôle, de parties différentes."""
     acc = {}
     for gi, g in enumerate(games):
         board = chess.Board()
-        seen = {}   # structure -> {plies, first, owner, pions: {rôle: set}, leviers: {rôle: set}, cases: {rôle: set((pièce, case))}, pos: {rôle: n}, ex}
+        seen = {}   # structure -> {plies, first, owner, leviers: {rôle: {nom: (fen, uci, san, camp)}}, pos: {rôle: n}, ex}
         try:
             moves = [chess.Move.from_uci(u) for u in g["m"].split()]
         except ValueError:
@@ -162,20 +169,15 @@ def master_stats(games):
             s = structure_at(board)
             if s:
                 key, owner = s
-                e = seen.setdefault(key, {"plies": 0, "first": ply, "owner": owner, "pions": {}, "leviers": {}, "cases": {}, "pos": {},
-                                          "ex": None})
+                e = seen.setdefault(key, {"plies": 0, "first": ply, "owner": owner, "leviers": {}, "pos": {}, "ex": None})
                 mover = board.turn
                 role, flip = role_of(owner, mover), flip_of(owner, mover)
                 e["plies"] += 1
                 e["pos"][role] = e["pos"].get(role, 0) + 1
-                pt = board.piece_type_at(move.from_square)
-                if pt == chess.PAWN:
-                    name = pawn_move_name(board, move, flip)
-                    e["pions"].setdefault(role, set()).add(name)
-                    if is_lever(board, move):
-                        e["leviers"].setdefault(role, set()).add(name)
-                elif pt in PIECE_LETTER:
-                    e["cases"].setdefault(role, set()).add((PIECE_LETTER[pt], chess.square_name(norm_square(move.to_square, flip))))
+                name = plan_move_name(board, move, flip)
+                if name in PLAN_MOVES.get(key, {}).get(role, ()):
+                    # coup-clé du plan, repéré dans le repère normalisé (le même, que le camp ait les Blancs ou les Noirs)
+                    e["leviers"].setdefault(role, {}).setdefault(name, (board.fen(), move.uci(), board.san(move), mover))
                 if e["plies"] == 6 and e["ex"] is None:   # position d'exemple : la structure est installée depuis quelques coups
                     b = board.mirror() if owner == chess.BLACK else board.copy()
                     e["ex"] = b.fen()
@@ -189,15 +191,13 @@ def master_stats(games):
             owner = e["owner"]
             a["score"] += _score(g.get("r"), owner if owner is not None else chess.WHITE)
             for role in e["pos"]:
-                r = a["roles"].setdefault(role, {"n": 0, "pions": {}, "leviers": {}, "cases": {}})
+                r = a["roles"].setdefault(role, {"n": 0, "freq": {}, "won": {}})
                 r["n"] += 1
-                for mv in e["pions"].get(role, ()):
-                    r["pions"][mv] = r["pions"].get(mv, 0) + 1
-                for mv in e["leviers"].get(role, ()):
-                    r["leviers"][mv] = r["leviers"].get(mv, 0) + 1
-                for letter, sq in e["cases"].get(role, ()):
-                    t = r["cases"].setdefault(letter, {})
-                    t[sq] = t.get(sq, 0) + 1
+                for name, (fen, uci, san, mover) in e["leviers"].get(role, {}).items():
+                    r["freq"][name] = r["freq"].get(name, 0) + 1
+                    if _score(g.get("r"), mover) == 1:
+                        r["won"].setdefault(name, []).append({"i": gi, "fen": fen, "uci": uci, "san": san,
+                                                              "c": "w" if mover == chess.WHITE else "b"})
             if e["ex"]:
                 a["ex"].append((e["plies"], e["ex"]))
             a["games"].append({"i": gi, "first": e["first"], "owner": owner, "plies": e["plies"]})
@@ -205,17 +205,16 @@ def master_stats(games):
     for key, a in acc.items():
         roles = {}
         for role, r in a["roles"].items():
-            roles[role] = {
-                "n": r["n"],
-                "pions": _top_pawn_moves(r["pions"], r["leviers"], r["n"]),
-                "cases": {letter: [[sq, round(100 * c / r["n"])] for sq, c in sorted(d.items(), key=lambda x: -x[1])[:TOP_SQUARES]]
-                          for letter, d in r["cases"].items()},
-            }
-        # exemple : une position parmi les plus longues (structure stable), pas un cas extrême
+            examples, used = [], set()
+            for name in sorted(r["won"], key=lambda x: -r["freq"][x]):
+                ex = next((x for x in r["won"][name] if x["i"] not in used), None)
+                if ex and len(examples) < EXAMPLES:
+                    examples.append(ex)
+                    used.add(ex["i"])
+            roles[role] = {"n": r["n"], "ex": examples}
+        # position d'exemple : une des plus longues (structure stable), pas un cas extrême
         ex = sorted(a["ex"], key=lambda x: -x[0])
         out[key] = {"n": a["n"], "pos": a["pos"], "score": round(100 * a["score"] / a["n"]), "roles": roles,
                     "ex": ex[len(ex) // 4][1] if ex else None}
         picks[key] = sorted(a["games"], key=lambda x: -x["plies"])
     return out, picks
-
-

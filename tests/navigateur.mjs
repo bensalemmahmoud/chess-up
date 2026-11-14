@@ -89,7 +89,10 @@ const SCENARIOS = [
     setMode('cours');await __t.wait(()=>coKey,3000,'cours');
     __t.ok(coKey==='pion_isole'&&coRole==='a','cours ouvert sur la structure prioritaire : '+coKey+':'+coRole);
     __t.ok(document.querySelector('#coTable tr[data-k="carlsbad"][data-r="c"]'),'deuxième structure dans le tableau');
-    __t.ok(/a3/.test(__t.text('coBody'))&&document.querySelectorAll('#coBoard .sq.hint').length===3,'poussée des maîtres et cases des pièces');
+    const exs=document.querySelectorAll('#coExList [data-ex]');__t.ok(exs.length===2&&exs[0].classList.contains('active'),'exemples du plan chez les maîtres');
+    const arrow=()=>document.querySelector('#coBoard svg.arrow line');__t.ok(arrow()&&/exemple\\.invalid\\/maitre\\/1/.test($('coBoardNote').innerHTML),'premier exemple sur l\\'échiquier, avec la flèche et le lien');
+    const x1=arrow().getAttribute('x1');exs[1].click();
+    __t.ok(exs[1].classList.contains('active')&&arrow().getAttribute('x1')!==x1&&/C – D/.test(__t.text('coBoardNote')),'second exemple affiché : '+__t.text('coBoardNote'));
     __t.ok(/youtube\\.com\\/watch\\?v=abcdefghijk&amp;t=95s/.test($('coVideos').innerHTML),'vidéo au bon moment : '+$('coVideos').innerHTML.slice(0,120));
     document.querySelector('#coTable tr[data-k="carlsbad"]').click();
     __t.ok(coKey==='carlsbad'&&document.querySelector('#coBoard .sq').dataset.sq==='h1','tu joues contre : échiquier retourné');

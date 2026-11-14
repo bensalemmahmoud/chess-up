@@ -71,10 +71,11 @@ def payload():
                {"id": "partie0002", "m": " ".join(ucis), "e": [20] * (len(ucis) + 1), "b": ucis + [""], "c": "b",   # partie d'un cours
                 "elo": 2600, "eloa": 2620, "fam": "Ruy Lopez", "res": "Victoire", "st": "pion_isole", "start": 21,
                 "nom": "A – B, 2026"}]
-    roles = {r: {"n": 40, "pions": [["a3", 45, False], ["d5", 30, True]], "cases": {"N": [["e5", 30]], "B": [["d3", 25]], "R": [["e1", 40]]}}
-             for r in ("a", "c")}
-    cours = {"stats": {"pion_isole": {"n": 40, "pos": 900, "score": 52, "roles": roles, "ex": IQP},
-                       "carlsbad": {"n": 20, "pos": 400, "score": 55, "roles": roles, "ex": IQP}},
+    # exemples du plan : deux coups-clés du camp au pion isolé (vraies positions), aucun pour le Carlsbad
+    examples = [{"fen": IQP, "uci": "f3e5", "san": "Ne5", "c": "w", "nom": "A – B, 2026", "u": "https://exemple.invalid/maitre/1"},
+                {"fen": IQP, "uci": "d4d5", "san": "d5", "c": "w", "nom": "C – D, 2026", "u": "https://exemple.invalid/maitre/2"}]
+    cours = {"stats": {"pion_isole": {"n": 40, "pos": 900, "score": 52, "roles": {"a": {"n": 40, "ex": examples}, "c": {"n": 40, "ex": []}}, "ex": IQP},
+                       "carlsbad": {"n": 20, "pos": 400, "score": 55, "roles": {"a": {"n": 20, "ex": []}, "c": {"n": 20, "ex": []}}, "ex": IQP}},
              "videos": {"pion_isole": [{"id": "abcdefghijk", "titre": "Video", "chaine": "Channel", "vues": 123456, "t": 95}]},
              "n": 100, "date": "2026-11-01"}
     objectif = {"cadence": "rapid", "target": 1700, "elo": 1690, "players": 3, "date": "2026-11-01",
