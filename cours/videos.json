@@ -1,0 +1,238 @@
+{
+ "pion_isole": [
+  {
+   "id": "IjqlvObkMGI",
+   "titre": "Chess lesson # 40: Isolated Pawns | Positional Chess The Right Way",
+   "chaine": "NM Robert Ramirez",
+   "vues": 58599,
+   "duree": 587,
+   "t": 0
+  },
+  {
+   "id": "oBsW9tOxwpE",
+   "titre": "How to play Isolated Pawn Positions | Pawn Structures | Advanced Level | GM Alex Lenderman",
+   "chaine": "Chessfactor",
+   "vues": 50382,
+   "duree": 1097,
+   "t": 0
+  },
+  {
+   "id": "KH0phw73NII",
+   "titre": "Défense Caro Kann (10) : Partie pédagogique avec pion isolé contre paire de Fous",
+   "chaine": "Progresser aux échecs avec Marc Quenehen",
+   "vues": 48256,
+   "duree": 1593,
+   "t": 108
+  }
+ ],
+ "carlsbad": [
+  {
+   "id": "d6tZXETpqT0",
+   "titre": "What Is The Carlsbad?? | Queens Gambit Declined | The Sensei Speedrun | GM Naroditsky",
+   "chaine": "Daniel Naroditsky",
+   "vues": 179994,
+   "duree": 2254,
+   "t": 0
+  },
+  {
+   "id": "kx-bKo7XB-w",
+   "titre": "Minority Attack Ideas, Concepts and Examples - A Clever Positional Strategy",
+   "chaine": "Chess Vibes",
+   "vues": 49756,
+   "duree": 554,
+   "t": 0
+  },
+  {
+   "id": "iQRtyMieFFI",
+   "titre": "Pawn Structure 101:Minority Attack",
+   "chaine": "Chess.com",
+   "vues": 28455,
+   "duree": 594,
+   "t": 0
+  }
+ ],
+ "chaine_francaise": [
+  {
+   "id": "sgT-VFzd7JQ",
+   "titre": "The French Defense | Basic Plans, Ideas & Strategies | Chess Openings | IM Andrey Ostrovskiy",
+   "chaine": "Chessfactor",
+   "vues": 33951,
+   "duree": 805,
+   "t": 0
+  }
+ ],
+ "chaine_est_indienne": [
+  {
+   "id": "rJ8LqYZZvnc",
+   "titre": "Punish 1.d4 With The King's Indian Defense [Key ATTACKING Ideas]",
+   "chaine": "Remote Chess Academy",
+   "vues": 395076,
+   "duree": 793,
+   "t": 0
+  },
+  {
+   "id": "rwJNII7rawY",
+   "titre": "All you need to know about King’s Indian middlegames",
+   "chaine": "IM Alex Banzea",
+   "vues": 126097,
+   "duree": 2437,
+   "t": 0
+  },
+  {
+   "id": "dC2Houwhegg",
+   "titre": "10 Strategic Patterns to Master the King’s Indian Defense",
+   "chaine": "Dr. Can's Chess Clinic",
+   "vues": 94876,
+   "duree": 2084,
+   "t": 0
+  }
+ ],
+ "maroczy": [
+  {
+   "id": "9Zc4eJu1sh8",
+   "titre": "Exploring the Hedgehog - GM Yasser Seirawan - 2014.02.27",
+   "chaine": "Saint Louis Chess Club",
+   "vues": 113852,
+   "duree": 2501,
+   "t": 105
+  },
+  {
+   "id": "uVGKrrucJbo",
+   "titre": "Pawn Structure #1: Maróczy Bind | Strategy Session with Jonathan Schrantz",
+   "chaine": "Saint Louis Chess Club",
+   "vues": 88710,
+   "duree": 2928,
+   "t": 0
+  },
+  {
+   "id": "xncHu-FAmyA",
+   "titre": "Don't Mess with the Hedgehog",
+   "chaine": "Eric Rosen",
+   "vues": 64762,
+   "duree": 484,
+   "t": 0
+  }
+ ],
+ "sicilienne": [
+  {
+   "id": "UQlQjco7Mc8",
+   "titre": "Sicilian Defense · Strategy, All Variations, Structures, Plans, Endgames, Resources",
+   "chaine": "Hanging Pawns",
+   "vues": 46776,
+   "duree": 2859,
+   "t": 0
+  },
+  {
+   "id": "LWUjbWze8FU",
+   "titre": "The Sicilian Defense after 2…d6 | Introduction - Part 1, Strategies, Plans & Ideas | Chess Openings",
+   "chaine": "Chessfactor",
+   "vues": 35212,
+   "duree": 1126,
+   "t": 0
+  }
+ ],
+ "stonewall": [
+  {
+   "id": "4_brAnORWGw",
+   "titre": "Learn the Stonewall Defense & Attack | 10-Minute Chess Openings",
+   "chaine": "GothamChess",
+   "vues": 1434388,
+   "duree": 508,
+   "t": 0
+  },
+  {
+   "id": "39KI_Ss7ouA",
+   "titre": "Stonewall Chess Opening Tutorial",
+   "chaine": "Remote Chess Academy",
+   "vues": 178828,
+   "duree": 725,
+   "t": 0
+  },
+  {
+   "id": "FYcvCPpovzA",
+   "titre": "The Stonewall Dutch · Chess Openings",
+   "chaine": "Hanging Pawns",
+   "vues": 130871,
+   "duree": 2071,
+   "t": 0
+  }
+ ],
+ "londres": [
+  {
+   "id": "z_WXMNdcx-Q",
+   "titre": "SYSTÈME de LONDRES - Comprendre ces 2 plans va TOUT CHANGER",
+   "chaine": "Echecs - Blitzstream",
+   "vues": 574301,
+   "duree": 2452,
+   "t": 41
+  },
+  {
+   "id": "TgQb2qVz_18",
+   "titre": "London System Attacking Blueprint | Best Middlegame Plans to Win Fast",
+   "chaine": "Remote Chess Academy",
+   "vues": 539597,
+   "duree": 1181,
+   "t": 0
+  },
+  {
+   "id": "jmqdJyDVTiw",
+   "titre": "Attacking Middlegame Strategy in The London System Opening",
+   "chaine": "Coach Kestony",
+   "vues": 169584,
+   "duree": 585,
+   "t": 0
+  }
+ ],
+ "italienne": [
+  {
+   "id": "I_VXU6dlYOM",
+   "titre": "5 WINNING Attacking PLANS in the Italian Game for White",
+   "chaine": "Remote Chess Academy",
+   "vues": 700326,
+   "duree": 1179,
+   "t": 0
+  },
+  {
+   "id": "P1Pb7HTKjSY",
+   "titre": "LE PLAN à connaitre dans l'ITALIENNE",
+   "chaine": "Julien Song",
+   "vues": 435539,
+   "duree": 1269,
+   "t": 25
+  },
+  {
+   "id": "6ACqk117Q7U",
+   "titre": "Learn The Italian Game, ALL Variations Explained [Traps, Ideas, And Plans]",
+   "chaine": "Remote Chess Academy",
+   "vues": 333942,
+   "duree": 1372,
+   "t": 0
+  }
+ ],
+ "colonne_d": [
+  {
+   "id": "wAKWIie29YM",
+   "titre": "Scotch Game | Ideas, Principles and Common Variations",
+   "chaine": "Hanging Pawns",
+   "vues": 265509,
+   "duree": 1242,
+   "t": 0
+  },
+  {
+   "id": "y1zhsUZ3qzo",
+   "titre": "Positional and Strategic Chess in the Ruy Lopez Exchange Variation",
+   "chaine": "Eric Rosen",
+   "vues": 119659,
+   "duree": 1705,
+   "t": 0
+  },
+  {
+   "id": "af8Air9_kKY",
+   "titre": "Scotch Game Basics - Main Lines, Ideas, Traps",
+   "chaine": "Chess Vibes",
+   "vues": 46330,
+   "duree": 1923,
+   "t": 0
+  }
+ ]
+}
