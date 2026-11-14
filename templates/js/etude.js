@@ -254,7 +254,7 @@ function validateStudy(){const c=eCur,truth=evalBucket(c.s.e),ev=[100,50,0][Math
  const id=studyId(c.s),r=srs[id]||{b:0,n:0};
  r.b=ok?Math.min(Math.max(r.b+1,3),INTERVALS.length-1):0;r.n++;r.t=Date.now();r.due=r.t+(ok?INTERVALS[r.b]:1)*864e5;   // réussie : 7 jours au moins ; ratée : le lendemain
  if(ok&&c.s.g==null)r.fin=1;else delete r.fin;   // position d'une autre partie réussie : plus reproposée (il y en a assez de nouvelles)
- r.h=[...(r.h||[]),[r.t,scores]].slice(-HISTORY);srs[id]=r;saveSrs();
+ r.h=[...(r.h||[]),[r.t,scores]].slice(-HISTORY);srs[id]=r;saveSrs();logAct('etude');
  eSession.n++;if(ok)eSession.ok++;c.result={good,ok};c.step='review';drawStudy();renderStudyScores();updateStudyStats()}
 
 function renderStudyScores(){const sc=themeScores(),ans=studyAnswers();

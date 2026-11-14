@@ -42,7 +42,7 @@ function serieAnswer(mv){const c=sCur,m=c.cards[c.i],ok=c.best&&mv.from===c.best
 function serieEnd(){const c=sCur,secs=(Date.now()-c.t0)/1000,rec=serieRec(c.k),prev=rec.h?.slice(-1)[0];clearInterval(sTimer);
  rec.h=[...(rec.h||[]),[Date.now(),c.ok,Math.round(secs)]];rec.t=Date.now();
  const all=c.ok===c.cards.length;if(all)delete rec.ids;   // série réussie en entier : la prochaine sera nouvelle
- srs['serie:'+c.k]=all?{h:[],t:rec.t}:rec;saveSrs();
+ srs['serie:'+c.k]=all?{h:[],t:rec.t}:rec;saveSrs();if(all)logAct('serie');
  $('sTimer').textContent='';$('sGo').hidden=false;
  const v={ok:c.ok,n:c.cards.length,time:fmtTime(secs),pok:prev?.[1],ptime:prev&&fmtTime(prev[2])};
  sFeedback(all?'ok':'',(prev?tx('<b>{ok}/{n}</b> en {time} (essai précédent : {pok}/{n} en {ptime}).',v):tx('<b>{ok}/{n}</b> en {time}.',v))+' '

@@ -35,7 +35,7 @@ function calcDraw(){const c=aCur,orient=new Chess(c.final).turn()==='b';
  for(let i=0;i<c.view;i++){const m=G.move(moves[i].san);last=[m.from,m.to]}
  $('aBoard').innerHTML=boardHTML(G,orient,{last,hint:c.view===moves.length&&c.best?c.best.to:null});
  $('aBack').disabled=c.view===0;$('aFwd').disabled=c.view>=moves.length}
-function calcRecord(ok){const rec=srs.calc||{h:[]};rec.h=[...rec.h,[Date.now(),aCur.len,ok?1:0]].slice(-CALC_HISTORY);rec.t=Date.now();srs.calc=rec;saveSrs()}
+function calcRecord(ok){const rec=srs.calc||{h:[]};rec.h=[...rec.h,[Date.now(),aCur.len,ok?1:0]].slice(-CALC_HISTORY);rec.t=Date.now();srs.calc=rec;saveSrs();logAct('calc')}
 function calcFinish(ok,html){const c=aCur;c.done=true;c.busy=false;c.view=c.line.length+(c.best?1:0);calcRecord(ok);
  aFeedback(ok?'ok':'ko',html+' '+tx('Parcours la suite avec ◀/▶.'));calcDraw();calcStats()}
 function calcAnswer(from,to){const c=aCur,F=new Chess(c.final),mv=F.move({from,to,promotion:'q'});

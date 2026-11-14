@@ -102,6 +102,23 @@ const SCENARIOS = [
     await __t.wait(()=>dCur?.p.st==='pion_isole',3000,'partie de maître');
     __t.ok(dCur.ply>=21&&dCur.G.turn()==='b','départ à l\\'entrée dans la structure, du côté du gagnant');
     return COURS[coKey].nom`],
+  ['ma semaine : objectifs, progression, temps choisi, objectif perso, adaptation et « Y aller »', false, `
+    showTab('accueil');const mk=weekKey(Date.now()),plan=srs['sem:'+mk];
+    __t.ok(plan&&document.querySelectorAll('#semGoals .goal').length===3,'3 objectifs avec 2 h : '+document.querySelectorAll('#semGoals .goal').length);
+    const th=plan.goals.find(g=>g.k==='theme');__t.ok(th&&plan.goals.some(g=>['gaffes','temps','tilt','lentes'].includes(g.k)),'un objectif de thème et un objectif de jeu');
+    const s0=goalStatus(th,mk);logAct('coup',{deck:th.deck,ok:true});__t.ok(goalStatus(th,mk).val===s0.val+1,'une position rejouée compte');
+    $('semBudget').value='4';$('semBudget').dispatchEvent(new Event('change'));
+    __t.ok(document.querySelectorAll('#semGoals .goal').length===4&&goalStatus(th,mk).target===2*s0.target,'4 h : un objectif de plus, deux fois plus de positions');
+    $('semPerso').value='2 parties en club';$('semPerso').dispatchEvent(new Event('change'));__t.ok(!$('semPersoOk').disabled,'objectif perso écrit');
+    $('semPersoOk').checked=true;$('semPersoOk').dispatchEvent(new Event('change'));__t.ok(srs['sem:'+mk].perso.ok,'objectif perso coché');
+    // semaine précédente avec le thème atteint : il devient plus exigeant (+20 %)
+    const pk=dayKey(addDays(parseDay(mk),-7));srs['sem:'+pk]={t:1,h:2,goals:[{k:'theme',deck:th.deck,lvl:1}],perso:{txt:'',ok:false}};
+    srs['j:'+pk+':test']={t:1,c:{coup:99,d:{[th.deck]:99}}};
+    __t.ok(buildPlan(mk).goals[0].lvl===1.2,'objectif atteint la semaine précédente : +20 %');
+    renderSemaine();__t.ok(/1\\/1/.test(__t.text('semHist')),'bilan de la semaine précédente : '+__t.text('semHist'));
+    document.querySelector('#semGoals [data-go="'+plan.goals.indexOf(th)+'"]').click();
+    __t.ok(!$('modeCoup').hidden&&$('tDeck').value===th.deck,'« Y aller » ouvre le thème dans Trouver le coup');
+    return goalLabel(th,4).replace(/<[^>]+>/g,'')`],
   ['finales : conseil, puis meilleur coup de Stockfish', true, `
     setMode('finales');await __t.wait(()=>fCur,3000,'finale');__t.ok($('fHint').textContent==='Conseil','bouton Conseil');
     $('fHint').click();__t.ok(!$('fConseil').hidden&&$('fHint').textContent==='Meilleur coup','conseil affiché');

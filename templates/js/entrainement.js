@@ -86,7 +86,7 @@ const gameNote=()=>{const v={san:`<b>${esc(cur.m.san)}</b>`,c:cur.m.count,wb:cur
 
 function grade(ok){const id=cardId(cur.m),s=srs[id]||{b:0,n:0};
  if(!ok)s.b=0;else if(!cur.hint)s.b=Math.min(s.b+1,INTERVALS.length-1);   // avec indice : réussie, mais la boîte ne monte pas
- s.n++;s.t=Date.now();s.due=s.t+(ok?Math.max(1,INTERVALS[s.b]):0)*864e5;srs[id]=s;saveSrs();   // t : date de mise à jour, pour la synchronisation
+ s.n++;s.t=Date.now();s.due=s.t+(ok?Math.max(1,INTERVALS[s.b]):0)*864e5;srs[id]=s;saveSrs();logAct('coup',{deck:$('tDeck').value,ok});   // t : date de mise à jour, pour la synchronisation
  cur.done=true;session.n++;if(ok&&!cur.hint)session.ok++;
  if(!ok)queue.splice(Math.min(3,queue.length),0,cur.m);   // une position ratée revient quelques positions plus loin
  updateStats()}

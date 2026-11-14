@@ -99,6 +99,7 @@ function renderCours(){const ok=typeof Chess!=='undefined'&&D.cours;
 function showCours(kr,rows){const [k,r]=kr.split(':');coKey=k;coRole=r;const c=COURS[k],st=(D.cours.stats||{})[k],role=st?.roles?.[r];
  rows=rows||coursAgg(baseFilter(false)).rows;const me=rows.find(x=>x.k===k&&x.r===r);
  $('coSel').value=kr;
+ if(!$('modeCours').hidden&&!$('coBlock').hidden)logAct('cours',{st:k});   // cours ouvert (objectif « Ma semaine »)
  $('coTitle').textContent=c.nom;$('coRole').textContent=coRoleName(k,r);
  const plan=c.plan[r]||[];
  let h=`<p>${esc(c.idee)}</p><h3>${tx('Le plan')}</h3><ul class="insights">${plan.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`;

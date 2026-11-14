@@ -61,7 +61,7 @@ function frStatus(){const c=fCur,G=c.G,r=c.r,op=OTHER[c.me],pieces=col=>boardOf(
  return c.moves>=r.max&&G.turn()===c.me?'ko':null}
 function frEnd(st){const c=fCur,rec=srs['fr:'+c.r.k]||{n:0,ok:0};c.over=true;
  rec.n++;if(st==='ok'&&!c.help)rec.ok++;   // réussie avec les coups de Stockfish : pas validée
- rec.t=Date.now();srs['fr:'+c.r.k]=rec;saveSrs();
+ rec.t=Date.now();srs['fr:'+c.r.k]=rec;saveSrs();if(st==='ok'&&!c.help)logAct('fin');
  const why=c.G.in_checkmate()?tx('Échec et mat.'):c.G.in_stalemate()?tx('Pat.'):c.G.in_draw()||c.G.in_threefold_repetition()?tx('Partie nulle.'):'';
  frFeedback(st==='ok'?'ok':'ko',st==='ok'?(c.help?tx('<b>Réussi avec l\'aide de Stockfish.</b> {why} Recommence sans son aide pour la valider.',{why}):tx('<b>Réussi !</b> {why} {bravo}',{why,bravo:c.hint?'':tx('Sans le conseil, bravo.')}))
   :tx('<b>Raté.</b> {why} Lis le conseil et recommence : cette finale doit devenir un automatisme.',{why}));

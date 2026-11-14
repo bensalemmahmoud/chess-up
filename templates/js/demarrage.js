@@ -10,6 +10,7 @@ const mainCadence=Object.entries(D.games.reduce((o,g)=>{if(g.sf)o[g.cadence]=(o[
 if(mainCadence)$('fCadence').value=mainCadence[0];
 initOpponent();renderObjective();
 render();
+renderSemaine();   // après render() : la priorité n°1 (topCause) est connue
 setMode((()=>{try{return localStorage.getItem('chess-up:mode')}catch(e){return null}})());
 
 /* ---------- onglets ---------- */

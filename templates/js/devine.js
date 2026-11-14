@@ -44,7 +44,7 @@ function dvGuess(mv){const c=dCur,p=c.p,ply=c.ply,master=c.moves[ply],sign=p.c==
  c.G.undo();c.fenBefore=c.G.fen();c.guess=mv.san;   // le coup proposé est retiré : on joue ensuite celui du maître
  const lm=Math.max(0,winPct(sign*p.e[ply])-winPct(sign*p.e[ply+1]));   // ce que son coup a coûté (cache)
  const M=new Chess(c.fenBefore),mm=dvUci(M,master),found=u===master;c.masterSan=mm.san;
- const finish=loss=>{c.busy=false;c.r.n++;if(found&&!c.hint)c.r.f++;   // trouvé avec l'indice : pas compté comme trouvé
+ const finish=loss=>{c.busy=false;c.r.n++;logAct('devine',{st:p.st});if(found&&!c.hint)c.r.f++;   // trouvé avec l'indice : pas compté comme trouvé
   c.r.a+=moveAccuracy(loss);c.r.am+=moveAccuracy(lm);
   const san=esc(mm.san),pts=Math.round(loss);
   const grade=found?['ok',c.hint?tx('<b>C\'est son coup</b> (avec l\'indice).'):tx('<b>C\'est son coup !</b>')]:loss<T.imp?['ok',tx('<b>Bon coup aussi.</b> Il a joué <b>{san}</b>.',{san})]

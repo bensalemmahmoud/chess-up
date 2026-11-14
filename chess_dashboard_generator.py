@@ -1027,7 +1027,7 @@ def template(name):
 
 # Code du tableau de bord, un fichier par fonctionnalité, réunis dans un seul <script> (l'ordre compte : demarrage.js en dernier)
 DASHBOARD_SCRIPTS = ["i18n.js", "base.js", "comportement.js", "entrainement.js", "etude.js", "moteur.js", "explication.js", "partie.js", "devine.js",
-                     "finales.js", "serie.js", "aveugle.js", "cours.js", "repertoire.js", "objectif.js", "adversaire.js", "synchro.js", "demarrage.js"]
+                     "finales.js", "serie.js", "aveugle.js", "cours.js", "semaine.js", "repertoire.js", "objectif.js", "adversaire.js", "synchro.js", "demarrage.js"]
 
 def dashboard_page(lang=None):
     """Page du tableau de bord, avec les traductions de toutes les langues : le visiteur peut changer de langue dans la page.
