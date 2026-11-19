@@ -39,7 +39,7 @@ a{color:#91caff}.note{font-size:12px;color:var(--muted);margin-top:10px}
 .dsec{scroll-margin-top:56px}
 .modegroups{display:flex;flex-wrap:wrap;gap:10px 16px}.mgroup{display:flex;flex-direction:column;gap:4px;min-width:0;max-width:100%}.mglabel{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .modegroups .modes{margin-bottom:0}.modedesc{margin:8px 0 14px}
-.grid.home3{grid-template-columns:repeat(3,minmax(0,1fr))}.tile{text-align:left;cursor:pointer;color:var(--text);font:inherit}.tile:hover{border-color:var(--c1)}.tiletxt{display:block;font-size:17px;line-height:1.25}
+.grid.home4{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}.profcols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.profcols h3{margin:6px 0}.proflist{margin:0;padding-left:18px;font-size:14px}.proflist li{margin:4px 0}.proflink{cursor:pointer}.proflink:hover{color:var(--c1)}.hpriogrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.hprio{border:1px solid var(--line);border-top:3px solid var(--c1);border-radius:12px;padding:14px;min-width:0}.hprio .rank{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}.hprio h3{margin:4px 0 6px;font-size:16px}.hprio .muted{font-size:13px}.hprioact{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:10px}button.cta{border:0;cursor:pointer;font-family:inherit}.tile{text-align:left;cursor:pointer;color:var(--text);font:inherit}.tile:hover{border-color:var(--c1)}.tiletxt{display:block;font-size:17px;line-height:1.25}
 .seance{border-left:4px solid var(--c1);margin-bottom:14px}.seance.done{border-left-color:var(--win)}.seance h3{margin:4px 0 6px}
 .semperso{display:flex;gap:10px;align-items:center;border-bottom:0}.semperso input[type=checkbox]{width:18px;height:18px;flex:none}.semperso .syncout{font:inherit;font-size:14px;min-width:0}
 .boardnav{display:flex;gap:8px;justify-content:center;margin-top:8px}.boardnav button{flex:1;max-width:96px;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px;font-size:16px;cursor:pointer}
@@ -81,7 +81,7 @@ textarea.syncout{font:13px/1.4 monospace;resize:vertical;margin-top:6px}
 .tabs a span{max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .tabs a.active{border-top-color:var(--c1)}.tabs svg{width:22px;height:22px}
 .grid{gap:10px}.kpi{padding:12px 14px}.kpi .value{font-size:20px}.kpi .hint{font-size:11px}
-main{padding:14px 16px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.grid.home3{grid-template-columns:minmax(0,1fr)}.charts,.prio,.trainer,.rep{grid-template-columns:minmax(0,1fr)}.reptable{height:300px}.tabs a{font-size:10px}.chartbox{height:250px}}
+main{padding:14px 16px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.grid.home4{grid-template-columns:repeat(2,minmax(0,1fr))}.profcols,.hpriogrid{grid-template-columns:minmax(0,1fr)}.charts,.prio,.trainer,.rep{grid-template-columns:minmax(0,1fr)}.reptable{height:300px}.tabs a{font-size:10px}.chartbox{height:250px}}
 </style></head><body><main>
 <header><div>__HOME__<h1>Chess Analytics</h1><div class="muted" id="subtitle"></div></div><div class="muted" id="generated"></div><a href="#reglages" class="gear" title="Réglages" aria-label="Réglages">⚙</a></header>
 <nav class="tabs" id="tabs"><a href="#accueil" data-tab="accueil"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z"/></svg><span>Accueil</span></a><a href="#diagnostic" data-tab="diagnostic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M2 20h20"/></svg><span>Diagnostic</span></a><a href="#entrainement" data-tab="entrainement"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg><span>S'entraîner</span></a><a href="#parties" data-tab="parties"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg><span>Parties</span></a><a href="#adversaire" data-tab="adversaire"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg><span>Adversaire</span></a></nav>
@@ -90,12 +90,15 @@ main{padding:14px 16px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.grid
 <label><input type="checkbox" id="fRated"> Parties classées uniquement</label><span class="muted" id="fCount"></span></div>
 
 <div class="tab" data-tab="accueil">
+<section class="panel" id="profPanel" style="margin-bottom:14px"><div class="phead"><div><h2>Mon profil</h2><p class="sub" id="profSub"></p></div><button class="linkbtn" data-sec="secPrio">Voir le diagnostic complet →</button></div>
+<div class="grid home4" id="homeStats"></div>
+<div class="profcols"><div><h3>Points forts</h3><ul class="proflist" id="profForts"></ul></div><div><h3>À améliorer</h3><ul class="proflist" id="profFaibles"></ul></div></div></section>
+<section class="panel" id="homePrioPanel" style="margin-bottom:14px"><div class="phead"><div><h2>Tes 3 priorités d'entraînement</h2><p class="sub">Là où tu perds le plus de points, d'après l'analyse de tes parties.</p></div></div><div class="hpriogrid" id="homePrio"></div></section>
 <section class="panel" id="semPanel" style="margin-bottom:14px"><div class="phead"><div><h2>Ma semaine</h2><p class="sub" id="semSub"></p><button class="cta" id="semStart">Commencer ma séance →</button></div>
 <label class="muted">Temps d'entraînement <select id="semBudget" class="select"><option value="1">1 h par semaine</option><option value="2">2 h par semaine</option><option value="4">4 h par semaine</option></select></label></div>
 <div id="semGoals"></div>
 <div class="goal semperso"><label><input type="checkbox" id="semPersoOk" aria-label="Objectif perso atteint"></label><input id="semPerso" class="syncout" maxlength="120" placeholder="Mon objectif perso de la semaine (ex. 2 parties en club, relire mes notes d'ouverture…)"></div>
 <div class="note" id="semHist"></div></section>
-<div class="grid home3" id="homeStats"></div>
 </div>
 
 <div class="tab" data-tab="diagnostic" hidden>

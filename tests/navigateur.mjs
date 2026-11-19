@@ -130,7 +130,10 @@ const SCENARIOS = [
     document.querySelector('.gear').click();await __t.wait(()=>shown('reglages'),3000,'réglages');
     __t.ok($('langue').offsetParent&&$('syncBtn').offsetParent,'langue et synchronisation dans les réglages');
     showTab('accueil');const tiles=document.querySelectorAll('#homeStats .tile');__t.ok(tiles.length>=2,'repères de l\\'accueil : '+tiles.length);
-    tiles[0].click();__t.ok(shown('diagnostic'),'un repère mène au diagnostic');
+    __t.ok(document.querySelectorAll('#profForts li,#profFaibles li').length>=2&&$('profSub').textContent.length>10,'aperçu du profil : points forts et à améliorer');
+    const hp=document.querySelectorAll('#homePrio .hprio');__t.ok(hp.length>=1&&hp.length<=3,'priorités sur l\\'accueil : '+hp.length);
+    hp[0].querySelector('[data-deck]').click();__t.ok(!$('modeCoup').hidden&&shown('entrainement')&&$('tDeck').value===hp[0].querySelector('[data-deck]').dataset.deck,'« S\\'entraîner » ouvre le thème de la priorité');
+    showTab('accueil');tiles[0].click();__t.ok(shown('diagnostic'),'un repère mène au diagnostic');
     return tiles.length+' repères'`],
   ['séance guidée : étapes tirées de « Ma semaine », compte, étape suivante, bilan', false, `
     showTab('accueil');$('semStart').click();

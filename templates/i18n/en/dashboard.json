@@ -182,5 +182,10 @@
   "Précision": "Accuracy",
   "Gaffes": "Blunders",
   "Lien": "Link",
-  "Données issues de l'API publique __SITE__. « Précision » : celle de __SITE__ si disponible, sinon l'estimation Stockfish (marquée *).": "Data from the public __SITE__ API. “Accuracy”: __SITE__'s when available, otherwise the Stockfish estimate (marked *)."
+  "Données issues de l'API publique __SITE__. « Précision » : celle de __SITE__ si disponible, sinon l'estimation Stockfish (marquée *).": "Data from the public __SITE__ API. “Accuracy”: __SITE__'s when available, otherwise the Stockfish estimate (marked *).",
+  "Mon profil": "My profile",
+  "Voir le diagnostic complet →": "See the full diagnosis →",
+  "Points forts": "Strengths",
+  "À améliorer": "To improve",
+  "Là où tu perds le plus de points, d'après l'analyse de tes parties.": "Where you lose the most points, according to the analysis of your games."
 }

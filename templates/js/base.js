@@ -72,6 +72,9 @@ function motifCounts(G){const ids=new Set(G.map(g=>g.i)),list=D.moments.filter(m
  return {n:list.length,none:list.filter(m=>!(m.mot||[]).length).length,ranked:Object.entries(c).sort((a,b)=>b[1]-a[1])}}
 
 const CAUSES={temps:tx('Gestion de la pendule'),conversion:tx('Conversion des positions gagnantes'),ouverture:tx('Sortie d\'ouverture'),milieu:tx('Tactique en milieu de partie'),finale:tx('Technique de finale'),positionnel:tx('Jeu positionnel (pas de gaffe nette)')};
+// Points perdus par cause (parties non gagnées), de la plus coûteuse à la moins coûteuse
+function lostByCause(A){const lost={};A.a.forEach(g=>{const c=cause(g);if(c)(lost[c]??={pts:0,games:[]}).pts+=1-g.pts,lost[c].games.push(g)});
+ const ranked=Object.entries(lost).sort((a,b)=>b[1].pts-a[1].pts);return {ranked,totalLost:ranked.reduce((t,[,v])=>t+v.pts,0)}}
 function cause(g){if(g.resultat==='Victoire'||!g.sf)return null;const s=g.sf,d=s.decisive;
  if((g.fin==='timeout'&&(!d||d.loss<T.gaf))||(d&&d.zt))return 'temps';
  if(s.max_win>=T.win)return 'conversion';
@@ -151,8 +154,7 @@ function renderSF(G,GA){const A=sfAgg(G);
   options:barOpts({plugins:{tooltip:{callbacks:{label:c=>c.dataset.yAxisID==='y1'?tx('Précision : {v}',{v:fmt(c.raw)+PC}):tx('{l} : {v} pour 100 coups',{l:c.dataset.label,v:fmt(c.raw)})}}},
    scales:{y:{beginAtZero:true,title:{display:true,text:tx('pour 100 coups')}},y1:{position:'right',suggestedMin:60,max:100,grid:{drawOnChartArea:false},ticks:{callback:v=>v+PC}}}})});
 
- const lost={};A.a.forEach(g=>{const c=cause(g);if(c)(lost[c]??={pts:0,games:[]}).pts+=1-g.pts,lost[c].games.push(g)});
- const ranked=Object.entries(lost).sort((a,b)=>b[1].pts-a[1].pts);const totalLost=ranked.reduce((t,[,v])=>t+v.pts,0);
+ const {ranked,totalLost}=lostByCause(A);
  chart('causeChart',{type:'bar',data:{labels:ranked.map(([c])=>CAUSES[c]),datasets:[{label:tx('Points perdus'),data:ranked.map(([,v])=>v.pts),backgroundColor:'#e66767',borderRadius:4,maxBarThickness:28}]},
   options:barOpts({indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>txn(ranked[c.dataIndex][1].games.length,'{p} points · {n} partie · {s} des points perdus','{p} points · {n} parties · {s} des points perdus',{p:fmt(c.raw,1),s:fmt(pct(c.raw,totalLost),0)+PC})}}},scales:{x:{beginAtZero:true}}})});
 

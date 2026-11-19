@@ -138,15 +138,53 @@ $('semBudget').addEventListener('change',e=>{srs['sem:budget']={t:Date.now(),h:+
 const semPerso=()=>{const p=srs['sem:'+weekKey(Date.now())];p.perso={txt:$('semPerso').value.trim().slice(0,120),ok:$('semPersoOk').checked&&!!$('semPerso').value.trim()};p.t=Date.now();saveSrs();renderSemaine()};
 $('semPerso').addEventListener('change',semPerso);$('semPersoOk').addEventListener('change',semPerso);
 
-/* ---------- accueil : trois repères, chacun mène à sa section du diagnostic ---------- */
-function renderHome(){const cad=semCad(),G=D.games.filter(g=>g.cadence===cad&&g.elo_joueur),last=G[G.length-1],tiles=[];
+/* ---------- accueil : aperçu du profil, puis les 3 priorités ; chaque repère mène à sa section du diagnostic ---------- */
+// Cadence de « Ma semaine » (la plus analysée), sur toute la période du rapport. Points forts et points à améliorer
+// ne retiennent que des écarts nets, calculés depuis les parties du joueur (score vs attendu au-delà de 2 écarts-types,
+// phase la plus et la moins précise…).
+const PROF_MAX=3,PROF_PHASE_MIN=50,PROF_MIN_GAMES=10;
+const expScore=l=>l.reduce((t,g)=>t+1/(1+10**(gap(g)/400)),0)/l.length;   // score attendu d'après l'écart d'Elo
+function profileTraits(G,A){const out=[],pc=v=>fmt(v,0)+PC;
+ if(A){const ph=['ouverture','milieu','finale'].filter(p=>A.ph[p].coups>=PROF_PHASE_MIN).map(p=>({p,a:phAcc(A,p)})).sort((x,y)=>y.a-x.a);
+  if(ph.length>1&&ph[0].a-ph[ph.length-1].a>=2){const b=ph[0],w=ph[ph.length-1];
+   out.push({v:b.a-w.a,sec:'secErreurs',txt:tx('Ta phase la plus solide : {p} ({a} de précision).',{p:PHASE[b.p].toLowerCase(),a:pc(b.a)})});
+   out.push({v:w.a-b.a,sec:'secErreurs',txt:tx('Ta phase la plus fragile : {p} ({a} de précision, {g} gaffes pour 100 coups).',{p:PHASE[w.p].toLowerCase(),a:pc(w.a),g:fmt(100*A.ph[w.p].gaf/A.ph[w.p].coups,1)})})}
+  if(A.winning>=5){const c=100-pct(A.notConv,A.winning);
+   if(c>=85)out.push({v:c-85,sec:'secResultats',txt:tx('Tu convertis {c} de tes positions gagnantes.',{c:pc(c)})});
+   else if(c<70)out.push({v:c-70,sec:'secResultats',txt:tx('Tu ne convertis que {c} de tes positions gagnantes ({n} sur {w}).',{c:pc(c),n:A.winning-A.notConv,w:A.winning})})}}
+ // Contre plus fort / plus faible : score réel contre score attendu d'après l'Elo
+ [[g=>gap(g)>=100,tx('plus fort (+100 Elo et plus)')],[g=>gap(g)<=-100,tx('plus faible (−100 Elo et moins)')]].forEach(([f,lab])=>{const l=G.filter(g=>g.elo_adversaire&&f(g));
+  if(l.length<PROF_MIN_GAMES)return;const s=score(l),e=expScore(l),sg=scoreGap(s,e);
+  if(sg)out.push({v:s.s-100*e,sec:'secResultats',txt:tx('Contre {qui} : {s} de score pour {e} attendus ({n} parties).',{qui:lab,s:pc(s.s),e:pc(100*e),n:s.n})})});
+ const all=score(G),col=['Blancs','Noirs'].map(c=>({c,...score(G.filter(g=>g.couleur===c))}));
+ if(col.every(x=>x.n>=PROF_MIN_GAMES)&&scoresDiffer(col[0],col[1])){const [hi,lo]=col[0].s>=col[1].s?col:[col[1],col[0]];
+  out.push({v:hi.s-lo.s,sec:'secResultats',txt:tx('Avec les {c} : {s} de score.',{c:vtx(hi.c),s:pc(hi.s)})});
+  out.push({v:lo.s-hi.s,sec:'secResultats',txt:tx('Avec les {c} : {s} de score.',{c:vtx(lo.c),s:pc(lo.s)})})}
+ openingRows(G,'famille',PROF_MIN_GAMES).forEach(r=>{const sg=scoreGap(r,all.s/100);
+  if(sg)out.push({v:r.s-all.s,sec:'secOuvertures',txt:tx('{o} avec les {c} : {s} de score ({n} parties).',{o:esc(r.name),c:vtx(r.col),s:pc(r.s),n:r.n})})});
+ const by=k=>out.filter(x=>k*x.v>0).sort((x,y)=>k*(y.v-x.v)).slice(0,PROF_MAX);
+ return {forts:by(1),faibles:by(-1)}}
+
+function renderHome(){const cad=semCad(),GC=D.games.filter(g=>g.cadence===cad),G=GC.filter(g=>g.elo_joueur),last=G[G.length-1],A=sfAgg(GC),tiles=[];
+ $('profSub').textContent=GC.length?txn(GC.length,'{n} partie en {cad} depuis le {d}','{n} parties en {cad} depuis le {d}',{cad,d:new Date(GC[0].date).toLocaleDateString(LOCALE,{day:'numeric',month:'long',year:'numeric'})})
+  +(A?' · '+txn(A.n,'{n} analysée par Stockfish','{n} analysées par Stockfish'):'')+'.':'';
  if(last){const ago=dayKey(Date.now()-30*864e5),old=[...G].reverse().find(g=>g.date<ago),d=old?last.elo_joueur-old.elo_joueur:null;
   tiles.push(['secResultats',tx('Elo {cad}',{cad:esc(cad)}),last.elo_joueur,d==null?'':tx('{d} en 30 jours',{d:(d>0?'+':'')+d})])}
+ const s=score(GC);if(s.n)tiles.push(['secResultats',tx('Score'),fmt(s.s,0)+PC,tx('{v} (V-N-D)',{v:vnd(s)})]);
+ if(A)tiles.push(['secErreurs',tx('Précision'),fmt(A.prec,0)+PC,tx('{g} gaffe par partie',{g:fmt(A.gaf/A.n,1)})]);
  const o=D.objectif;
  if(o&&last)tiles.push(['secObjectif',tx('Objectif'),o.target,o.target>last.elo_joueur?tx('encore {n} points · ce qui t\'en sépare',{n:o.target-last.elo_joueur}):tx('atteint · voir le détail')]);
- if(topCause)tiles.push(['secPrio',tx('Priorité n°1'),`<span class="tiletxt">${CAUSES[topCause]}</span>`,tx('là où tu perds le plus de points')]);
- $('homeStats').innerHTML=tiles.map(([sec,l,v,h])=>`<button class="kpi tile" data-sec="${sec}"><div class="label">${l}</div><div class="value">${v}</div><div class="hint">${h} →</div></button>`).join('')}
-$('homeStats').addEventListener('click',e=>{const b=e.target.closest('[data-sec]');if(b)goSection(b.dataset.sec)});
+ $('homeStats').innerHTML=tiles.map(([sec,l,v,h])=>`<button class="kpi tile" data-sec="${sec}"><div class="label">${l}</div><div class="value">${v}</div><div class="hint">${h} →</div></button>`).join('');
+ const P=profileTraits(G,A),li=l=>l.map(x=>`<li class="proflink" data-sec="${x.sec}" role="link" tabindex="0">${x.txt}</li>`).join('')||`<li class="muted">${tx('Rien qui ressorte nettement pour l\'instant.')}</li>`;
+ $('profForts').innerHTML=li(P.forts);$('profFaibles').innerHTML=li(P.faibles);
+ // Les 3 priorités : causes des points perdus, chacune avec son thème d'entraînement
+ const {ranked,totalLost}=A?lostByCause(A):{ranked:[]};$('homePrioPanel').hidden=!ranked.length;
+ $('homePrio').innerHTML=ranked.slice(0,3).map(([c,v],i)=>`<div class="hprio"><div class="rank">${tx('Priorité {n}',{n:i+1})}</div><h3>${CAUSES[c]}</h3>
+  <div class="muted">${txn(v.games.length,'{s} des points perdus · {n} partie','{s} des points perdus · {n} parties',{s:fmt(pct(v.pts,totalLost),0)+PC})}</div>
+  <div class="hprioact"><button class="cta" data-deck="${CAUSE_DECK[c]||'tout'}">${tx('S\'entraîner')}</button><button class="linkbtn" data-sec="secPrio">${tx('Comprendre →')}</button></div></div>`).join('')}
+document.querySelector('.tab[data-tab="accueil"]').addEventListener('click',e=>{const d=e.target.closest('[data-deck]');if(d)return semGo({k:'theme',deck:d.dataset.deck});
+ const b=e.target.closest('[data-sec]');if(b)goSection(b.dataset.sec)});
+document.querySelector('.tab[data-tab="accueil"]').addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.classList.contains('proflink'))goSection(e.target.dataset.sec)});
 
 /* ---------- séance guidée : enchaîner les exercices du jour tirés de « Ma semaine » ----------
    Une séance ≈ 20 minutes (3 par heure du temps choisi) : pour chaque objectif d'entraînement pas encore atteint, une
