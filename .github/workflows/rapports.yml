@@ -32,7 +32,16 @@ jobs:
 
       - run: python -m pip install -r requirements.txt
 
-      - run: sudo apt-get update && sudo apt-get install -y stockfish
+      # Stockfish via apt (3 essais : les miroirs Ubuntu sont parfois injoignables), sinon la version officielle
+      # téléchargée depuis GitHub dans stockfish/, que find_stockfish() trouve quand STOCKFISH_PATH n'existe pas.
+      - name: Stockfish
+        run: |
+          for i in 1 2 3; do
+            sudo apt-get update && sudo apt-get install -y -o Acquire::Retries=3 stockfish && exit 0
+            sleep 30
+          done
+          echo "::warning::apt indisponible : téléchargement de Stockfish depuis GitHub"
+          python -c "import chess_analysis as c, sys; p = c.download_stockfish(); print(p); sys.exit(not p)"
 
       # Node 22+ pour piloter Chrome (déjà installé sur le runner) dans les tests du dashboard
       - uses: actions/setup-node@v7
