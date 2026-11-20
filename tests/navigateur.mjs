@@ -189,10 +189,18 @@ const RUN = process.env.LANGUE === 'en' ? SCENARIOS_EN : SCENARIOS;
 const profile = mkdtempSync(join(tmpdir(), 'chess-up-'));
 const proc = spawn(exe, ['--headless=new', '--remote-debugging-port=0', '--user-data-dir=' + profile, '--no-first-run',
   '--no-default-browser-check', '--disable-extensions', '--window-size=1280,1000',
-  ...(process.env.CI ? ['--no-sandbox'] : []), 'about:blank'], {stdio: 'ignore'});   // runners Ubuntu 24.04 : le bac à sable de Chrome n'y démarre pas
+  ...(process.env.CI ? ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage'] : []),   // runners Ubuntu : ni bac à sable, ni GPU, /dev/shm petit
+  'about:blank'], {stdio: ['ignore', 'ignore', 'pipe']});
+let browserLog = '', browserExit = null;
+proc.stderr.on('data', d => { browserLog = (browserLog + d).slice(-4000); });   // fin de la sortie d'erreur, affichée si le navigateur ne démarre pas
+proc.on('exit', (code, sig) => { browserExit = sig || code; });
+proc.on('error', e => { browserExit = e.code || e.message; });
 let failed = 0, browser = null;
 try {
-  const port = await until(() => { const f = join(profile, 'DevToolsActivePort'); return existsSync(f) && readFileSync(f, 'utf8').split('\n')[0]; }, 30000, 'démarrage du navigateur');
+  const port = await until(() => {
+    if (browserExit !== null) throw new Error(`navigateur arrêté au démarrage (${browserExit}) :\n${browserLog}`);
+    const f = join(profile, 'DevToolsActivePort'); return existsSync(f) && readFileSync(f, 'utf8').split('\n')[0];
+  }, 30000, 'démarrage du navigateur').catch(e => { throw new Error(e.message.startsWith('attente') ? `${e.message} (${exe})\n${browserLog}` : e.message); });
   const base = `http://127.0.0.1:${port}`;
   browser = cdp((await (await fetch(base + '/json/version')).json()).webSocketDebuggerUrl);
   await browser.open;
